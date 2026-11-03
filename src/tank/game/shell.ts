@@ -44,18 +44,10 @@ import {
 } from '../sim/lines'
 import { materialFactorText } from '../sim/market'
 import { readAdopted } from '../../platform/design-handoff'
+import { LEGACY_SAVE_KEYS, SAVE_KEY } from '../../platform/save-keys'
 import { writeTech } from '../../platform/tech-handoff'
 import type { SaveStore } from '../../platform/storage'
 
-const SAVE_KEY = 'tank-works.save.v7'
-/** 旧版本存档：v6 有国家，v5 有信誉/贿赂，v4 有研发，v3 产品/订单，v2 日期/现金。 */
-const LEGACY_SAVE_KEYS = [
-  'tank-works.save.v6',
-  'tank-works.save.v5',
-  'tank-works.save.v4',
-  'tank-works.save.v3',
-  'tank-works.save.v2',
-] as const
 const SPEEDS = [1, 3, 10, 30] as const
 const RENDER_INTERVAL_MS = 70
 const FEED_LIMIT = 60

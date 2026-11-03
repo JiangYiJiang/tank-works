@@ -1,6 +1,6 @@
 # 坦克厂 · 游戏设计文档
 
-> 版本 `v1.7` · 最后更新 2026-11-03 · 工作区：`F:\tankfactory`
+> 版本 `v1.8` · 最后更新 2026-11-03 · 工作区：`F:\tankfactory`
 > 状态：设计局、研发局、制造局都已跑通；游说局 M3（竞品/压价/贿赂/信誉/阵营）；贷款、关厂报告、多产线、料价、尺度 v1、主动防御、全部 `fn` 已接。
 > 设计局的车可以交给主循环去卖；科技树已经接进游戏，设计局按科技快照过滤零件，弹道系数随科技变化；
 > 抗破、装填、倒车、俯仰已经进入设计局读数，破甲弹按抗破判定。
@@ -1532,8 +1532,8 @@ v1–v6 老存档可以读：产品默认 FT-17，没有产线与订单，研发
 
 | 页面 | 路径 | 入口文件 | 用途 | 状态 |
 |---|---|---|---|---|
-| 根路径 | `/` | `index.html` | 只做跳转：→ `/game.html` | ✅ 可用 |
-| 游戏壳 | `/game.html` | `src/tank/game/main.ts` | 日历、产品、招标、产线、现金、研发 | ✅ 可玩最小闭环 |
+| 主菜单 | `/` | `index.html` / `src/tank/menu-entry.ts` | 继续存档、新游戏、四个入口 | ✅ 入口页 |
+| 游戏壳 | `/game.html` | `src/tank/game/main.ts` | 日历、产品、招标、产线、现金、研发 | ✅ 可玩闭环 |
 | 设计局 | `/tank.html` | `src/tank/main.ts` | 拼车、看四维、看代价、按科技过滤、把车交给主循环 | ✅ 可用 |
 | 研发局 | `/research.html` | `src/tank/research-main.ts` | 科技树、超前/追赶、落后年数 | ✅ 可用 |
 | 制造局 | `/manufacture.html` | `src/tank/manufacture-main.ts` | 产线、仓库、学习曲线 | ✅ 独立试算页（主循环同一模型） |
@@ -1601,15 +1601,20 @@ tank-works/
 │  │  ├─ sim/
 │  │  │  ├─ calendar.ts  state.ts  advance.ts  save.ts
 │  │  │  ├─ factory.ts       产线、仓库、学习曲线
-│  │  │  ├─ contract.ts      招标、接单、交付、经济结算（M1）
-│  │  │  └─ research.ts      研发：项目、槽位、速度、零件闸门
+│  │  │  ├─ contract.ts      招标、接单、交付、经济结算（M2）
+│  │  │  ├─ research.ts      研发：项目、槽位、速度、零件闸门
+│  │  │  ├─ loan.ts          授信、利息、自动透支
+│  │  │  ├─ lines.ts         加线、扩编、加班
+│  │  │  └─ market.ts        料价系数
 │  │  ├─ ui/
 │  │  │  ├─ bureau.ts + style.css          设计局
 │  │  │  ├─ research.ts + research.css     研发局
 │  │  │  └─ manufacture.ts + factory.css   制造局
-│  │  └─ game/shell.ts + style.css         游戏壳
+│  │  ├─ game/shell.ts + style.css         游戏壳
+│  │  └─ menu-main.ts + menu-entry.ts + menu.css   主菜单
 │  └─ platform/
 │     ├─ storage.ts          SaveStore 抽象
+│     ├─ save-keys.ts        存档键 / 新游戏清理清单
 │     ├─ design-handoff.ts   设计局 → 主循环的 localStorage 交接
 │     └─ tech-handoff.ts     主循环 → 设计局的科技快照
 ├─ probe/                    校准台、预算台、标定台（fit/ 子目录是标定器，不进产物）
@@ -1803,7 +1808,7 @@ npm install           # 首次
 npm run dev           # 开发服务器 127.0.0.1:5273，四个页面
 npm run build         # 构建到 dist/（四个入口，相对路径）
 npm run preview       # 预览打包结果
-npm run check         # 全部检查：类型 + 校准 + 节奏 + 四套冒烟 + 研发 + 指标 + 经济 + 尺度（405 项断言）
+npm run check         # 全部检查：类型 + 校准 + 节奏 + 五套冒烟 + 研发 + 指标 + 经济 + 尺度（420 项断言）
 
 npm run design        # 19 辆历史车校准表
 npm run ballistics    # 弹道两轴表
@@ -1817,6 +1822,7 @@ npm run economy       # 经济闭环验收（竞品、压价、贿赂、审计�
 
 npm run smoke:tank    # 设计局界面 36 项
 npm run smoke:game    # 游戏壳界面 99 项
+npm run menu          # 主菜单界面 15 项
 npm run smoke:research # 研发局界面 27 项
 npm run smoke:mf      # 制造局界面 21 项
 
