@@ -55,8 +55,16 @@ function caliberEff(caliber: number): number {
   return Math.pow(ratio, t.caliberExp)
 }
 
-/** 500m 处穿深 mm RHAe（对均质钢，入射角 0°）。 */
-export function penetration(gun: GunDef, tech?: TechMods): number {
+/**
+ * 装填一发要多少秒。
+ * 炮塔里只有一个人时，车长要兼装填，慢 25%。自动装弹机等科技后续再接。
+ */
+export function reloadSeconds(gun: GunDef, turretCrew: number): number {
+  const base = 3.8 + gun.caliber * 0.04
+  return Math.round((turretCrew >= 2 ? base : base * 1.25) * 10) / 10
+}
+
+/** 500m 处穿深 mm RHAe（对均质钢，入射角 0°）。 */export function penetration(gun: GunDef, tech?: TechMods): number {
   const t = TUNING.gun
   if (gun.shell === 'heat') {
     // 破甲弹靠炸药而不是动能，穿深只看口径，而且**不随距离衰减**

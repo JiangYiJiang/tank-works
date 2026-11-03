@@ -276,6 +276,12 @@ export interface TankPhysical {
   armorTurret: number
   /** 侧面等效抗穿 mm RHAe */
   armorSide: number
+  /** 首上等效抗破 mm RHAe（对化学能弹） */
+  armorFrontCe: number
+  /** 炮塔正面等效抗破 mm RHAe */
+  armorTurretCe: number
+  /** 侧面等效抗破 mm RHAe */
+  armorSideCe: number
   /** 500m 穿深 mm RHAe */
   pen: number
   /** 口径 mm */
@@ -284,6 +290,12 @@ export interface TankPhysical {
   crew: number
   /** 备弹量 */
   rounds: number
+  /** 装填一发要多少秒（单人装填 / 双人炮塔） */
+  reloadSec: number
+  /** 倒车极速 km/h */
+  vReverse: number
+  /** 火炮俯仰角（负值，度） */
+  depression: number
 }
 
 /** 成本。用户要求「材料费 + 工时费」两条线，所以分开报。 */

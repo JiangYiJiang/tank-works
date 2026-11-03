@@ -421,11 +421,16 @@ export function mountBureau(root: HTMLElement): void {
     { k: 'groundPressure', label: '接地压力', unit: 'kPa' },
     { k: 'vMax', label: '公路极速', unit: 'km/h' },
     { k: 'vOffroad', label: '越野速度', unit: 'km/h' },
+    { k: 'vReverse', label: '倒车速度', unit: 'km/h' },
     { k: 'armorFront', label: '首上等效', unit: 'mm' },
     { k: 'armorTurret', label: '炮塔等效', unit: 'mm' },
     { k: 'armorSide', label: '侧面等效', unit: 'mm' },
+    { k: 'armorFrontCe', label: '首上抗破', unit: 'mm' },
+    { k: 'armorTurretCe', label: '炮塔抗破', unit: 'mm' },
     { k: 'velocity', label: '炮口初速', unit: 'm/s' },
     { k: 'pen', label: '穿深 500m', unit: 'mm' },
+    { k: 'reloadSec', label: '装填', unit: 's' },
+    { k: 'depression', label: '俯仰角', unit: '°' },
     { k: 'rounds', label: '备弹', unit: '发' },
   ]
   const physValues = new Map<string, HTMLElement>()
@@ -659,12 +664,17 @@ export function mountBureau(root: HTMLElement): void {
     set('groundPressure', nf(p.groundPressure))
     set('vMax', nf(p.vMax))
     set('vOffroad', nf(p.vOffroad))
+    set('vReverse', nf(p.vReverse))
     set('armorFront', nf(p.armorFront))
     set('armorTurret', nf(p.armorTurret))
     set('armorSide', nf(p.armorSide))
+    set('armorFrontCe', nf(p.armorFrontCe))
+    set('armorTurretCe', nf(p.armorTurretCe))
     const gun = GUNS.find((g) => g.id === design.gun)
     set('velocity', nf(tank.ballistics.v0))
     set('pen', nf(p.pen))
+    set('reloadSec', p.reloadSec.toFixed(1))
+    set('depression', `-${p.depression.toFixed(1)}`)
     set('rounds', nf(p.rounds))
 
     // ── 弹道两轴 ──
@@ -706,8 +716,12 @@ export function mountBureau(root: HTMLElement): void {
             : `长杆怕斜板：60° 时视线穿透掉到 0° 的 ${(100 + swing).toFixed(0)}%`
 
     const los2k = losPenetrated(b.pen2000, 60, b.slopeExp)
-    const through = los2k >= p.armorFront
-    balNote.textContent = `假设对面首上 60°：2km 处能打穿 ${nf(los2k)} mm 视线厚度，本车首上 ${nf(p.armorFront)} mm —— ${through ? '打得穿' : '打不穿'}`
+    const antiCe = b.shell === 'heat'
+    const target = antiCe ? p.armorFrontCe : p.armorFront
+    const through = los2k >= target
+    balNote.textContent = antiCe
+      ? `破甲弹不吃倾角：2km 处能打穿 ${nf(los2k)} mm 抗破，本车首上抗破 ${nf(target)} mm —— ${through ? '打得穿' : '打不穿'}`
+      : `假设对面首上 60°：2km 处能打穿 ${nf(los2k)} mm 视线厚度，本车首上 ${nf(target)} mm —— ${through ? '打得穿' : '打不穿'}`
     balNote.classList.toggle('warn', !through)
 
     costValues.get('材料费')!.textContent = `¥${nf(tank.cost.material)}`

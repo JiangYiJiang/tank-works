@@ -28,7 +28,7 @@ import { solveAdapt } from './adapt'
 import { solveProtection } from './armor'
 import { resolveGun, solveBallistics } from './ballistics'
 import { solveGeometry } from './geometry'
-import { penetration } from './gun'
+import { penetration, reloadSeconds } from './gun'
 import { solveMass } from './mass'
 import { solveMobility } from './mobility'
 import { NO_TECH, type TechMods } from './mods'
@@ -42,6 +42,11 @@ import { TUNING } from './tuning'
 export function crewCount(ringM: number, crewMin: number): number {
   const turret = ringM < 1.2 ? 1 : ringM < 1.75 ? 2 : 3
   return Math.max(crewMin, 2 + turret)
+}
+
+/** 俯仰角：座圈越大，炮尾越容易顶到地板，仰俯范围反而变小（负值，度）。 */
+export function depressionOf(ringM: number): number {
+  return Math.round(Math.min(10, Math.max(3, 10 - (ringM - 1) * 3)) * 10) / 10
 }
 
 export function buildTank(design: TankDesign, tech: TechMods = NO_TECH): Tank {
@@ -69,6 +74,7 @@ export function buildTank(design: TankDesign, tech: TechMods = NO_TECH): Tank {
   // 弹药改装会换掉弹种，但不会改变这门炮本身（口径、倍径、装药都不动）
   const realGun = resolveGun(gun, design.mods)
   const ballistic = solveBallistics(gun, design.mods, tech)
+  const turretCrew = Math.max(1, crew - 2)
 
   const physical: TankPhysical = {
     mass: mass.total,
@@ -80,13 +86,19 @@ export function buildTank(design: TankDesign, tech: TechMods = NO_TECH): Tank {
     groundPressure: mob.groundPressure,
     vMax: mob.vMax,
     vOffroad: mob.vOffroad,
+    vReverse: mob.vReverse,
     armorFront: prot.hull,
     armorTurret: prot.turret,
     armorSide: prot.side,
+    armorFrontCe: prot.hullCe,
+    armorTurretCe: prot.turretCe,
+    armorSideCe: prot.sideCe,
     pen: penetration(realGun, tech),
     caliber: gun.caliber,
     crew,
     rounds: gun.rounds,
+    reloadSec: reloadSeconds(realGun, turretCrew),
+    depression: depressionOf(geo.ring),
   }
 
   const raw = rawDimsFrom(physical, adapt.total)

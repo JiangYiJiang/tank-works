@@ -19,6 +19,8 @@ export interface Mobility {
   vMax: number
   /** 越野速度 km/h */
   vOffroad: number
+  /** 倒车极速 km/h（传动比受限，通常只有前进的 1/6–1/8） */
+  vReverse: number
 }
 
 const G = 9.81
@@ -39,6 +41,8 @@ export function solveMobility(massKg: number, engine: EngineDef, susp: Suspensio
   const gpFactor = Math.max(t.gpFloor, Math.min(t.gpCeil, t.groundPressureRef / groundPressure))
   const ratio = t.offroadBase + t.offroadQualitySpan * susp.quality
   const vOffroad = vMax * ratio * gpFactor
+  // 倒车：悬挂品质决定传动能承受多少反向扭矩；再差也留 2 km/h 挪车
+  const vReverse = Math.max(2, vMax * (0.12 + 0.08 * susp.quality))
 
-  return { hpPerTon, groundPressure, vMax, vOffroad }
+  return { hpPerTon, groundPressure, vMax, vOffroad, vReverse }
 }

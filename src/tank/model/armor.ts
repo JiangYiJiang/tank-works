@@ -26,6 +26,8 @@ export interface Protection {
   /** 首上等效抗破 mm RHAe（对化学能弹） */
   hullCe: number
   turretCe: number
+  /** 侧面等效抗破 mm RHAe */
+  sideCe: number
 }
 
 /** 倾角收益：1/cos(θ)^exp。θ 从垂直量起。复合结构直接返回 1（无额外收益）。 */
@@ -54,6 +56,7 @@ export function solveProtection(armor: ArmorFit): Protection {
   const ceHull = armor.front * slopeGain(armor.frontSlope, t.ceSlopeExp, hullMat.compound) * hullMat.ce * pike
   const ceTurret =
     armor.turretFront * slopeGain(armor.turretSlope, t.ceSlopeExp, turretMat.compound) * turretMat.ce
+  const ceSide = armor.side * hullMat.ce
 
-  return { hull: keHull, turret: keTurret, side: keSide, hullCe: ceHull, turretCe: ceTurret }
+  return { hull: keHull, turret: keTurret, side: keSide, hullCe: ceHull, turretCe: ceTurret, sideCe: ceSide }
 }
