@@ -210,9 +210,11 @@ check('1944 年能选 T-34/85', ww2.some((n) => n.includes('T-34/85')))
 
 // ── 9. 时代决定客户与门槛 ──────────────────────────────────
 const era3 = createGame(31)
+refreshOffers(era3)
 era3.era = 3
 refreshOffers(era3, true)
 check('二战标参照 T-34/76', era3.offers[0]?.ref.includes('T-34/76') === true, era3.offers[0]?.ref)
+check('换代时竞品发新车', era3.log.some((l) => l.t.includes('竞品动态')), era3.log.at(-1)?.t)
 
 // ── 9b. 竞品 / 贿赂 / 审计 ───────────────────────────────
 const rivalGame = createGame(41)

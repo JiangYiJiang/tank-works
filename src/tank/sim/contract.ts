@@ -172,6 +172,7 @@ export function refreshOffers(state: GameState, force = false, day = state.day):
   const tank = buildTank(ref.design)
   const year = dateOf(day).year
   const customers = customersFor(state.home, year)
+  const prevEra = state.offers[0]?.id.split('-')[0]
   const need: RawDims = {
     armor: Math.round(tank.raw.armor * 0.7),
     pen: Math.round(tank.raw.pen * 0.7),
@@ -189,6 +190,14 @@ export function refreshOffers(state: GameState, force = false, day = state.day):
     const rivalScore = Math.round(tank.score.total * skill)
     const rivalPrice = Math.round(tank.cost.total * v.factor * (0.9 + ((h >>> 8) % 21) / 100))
     const customer = customers[i % Math.max(1, customers.length)]
+    // 换代时让玩家看见「竞品也发了新车」：这是轻量 AI 唯一的外显行为。
+    if (i === 0 && prevEra !== undefined && prevEra !== String(era)) {
+      pushLog(state, {
+        d: day,
+        k: 'news',
+        t: `竞品动态：${firm.name} 推出 ${ref.name} 级新车，总分 ${rivalScore}，报价 ¥${rivalPrice.toLocaleString('en-US')}/台。`,
+      })
+    }
     return {
       id: `${era}-${v.key}-${day}`,
       nation: customer?.name ?? ref.nation,

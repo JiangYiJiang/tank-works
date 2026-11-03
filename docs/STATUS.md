@@ -24,7 +24,7 @@
 
 **一句话：主循环能转、科技树能推、设计能卖、标能抢、阵营能卡、钱能借、线能加、账能算；联机不做。**
 
-检查台现状：`npm run check` = 类型检查 + 12 个检查台，**399 项断言全绿**（见 §1.12）。
+检查台现状：`npm run check` = 类型检查 + 12 个检查台，**400 项断言全绿**（见 §1.12）。
 
 ---
 
@@ -110,7 +110,7 @@
 - 接单：原价、压价 5%（要求降 5% 的竞品分）、贿赂（付 8% 合同额，跳过竞品分）
 - 信誉 0–100：报价 ×0.90–1.10；按期 +2，逾期 −5，贿赂被查 −15
 - 国家/阵营：开局选国家；1941 同盟 vs 轴心、1950 西方 vs 东方；中立国谁都能卖；开工后国籍锁定
-- 竞品逐年成长：竞品总分 = 参照车总分 ×（公司 skill + 年份成长 + 抖动），上限 1.02
+- 竞品逐年成长：竞品总分 = 参照车总分 ×（公司 skill + 年份成长 + 抖动），上限 1.02；换届时发「竞品动态」新车
 - 年度审计：每笔未消账贿赂 +10% 被抓概率（上限 60%），罚款 10% 现金 + 信誉 −15
 - 排产：200 人 × 1 班，每天扣工资、出车、交付、回款；学习曲线照旧
 - 逾期单价 ×70%；现金 < 0 先自动透支，授信用满才破产；交完自动重新招标
@@ -121,7 +121,7 @@
 - 累计账：回款、材料、工资、研发、贿赂、罚款、利息、订单数、出车数；关厂报告直接读它
 - 产品按年代解锁（当前年份 + 2 年），换产品在下次接单时换型、熟练度 ×0.35
 
-**验证**：`npm run economy` → **95 项断言**；`npm run smoke:game` → **94 项断言**
+**验证**：`npm run economy` → **96 项断言**；`npm run smoke:game` → **94 项断言**
 
 ### 1.10 设计局 → 主循环 ✅
 
@@ -165,12 +165,12 @@
 | 研发 | `npm run research` | 49 | ✅ |
 | 设计指标 | `npm run metrics` | 13 | ✅ |
 | 经济尺度 | `npm run scale` | 33 | ✅ |
-| 经济 | `npm run economy` | 95 | ✅ |
+| 经济 | `npm run economy` | 96 | ✅ |
 | 设计局界面 | `npm run smoke:tank` | 36 | ✅ |
 | 游戏壳界面 | `npm run smoke:game` | 94 | ✅ |
 | 研发局界面 | `npm run smoke:research` | 27 | ✅ |
 | 制造局界面 | `npm run smoke:mf` | 21 | ✅ |
-| **合计** | | **399 项断言** | |
+| **合计** | | **400 项断言** | |
 
 ---
 
@@ -196,7 +196,7 @@
 |---|---|---|
 | 6 | 订单界面 + 谈判 | ✅ 原价 / 压价 5% / 贿赂三条路径；接受即签，不达标按钮禁用 |
 | 7 | 贿赂与查处 | ✅ 每年审计，罚款 10% 现金 + 信誉 −15；被查不撤销订单 |
-| 8 | 竞品设计商 | 🟡 8 家竞品 + 逐年成长 + 每标总分/报价；没有自己推新车/抢标的 AI |
+| 8 | 竞品设计商 | ✅ 8 家轻量 AI：skills、逐年成长、换届发车、每标竞价；不做自主设计/抢单算法 |
 | 9 | 阵营与出口限制 | ✅ 开局选国家；1941 同盟/轴心、1950 西方/东方；中立国通吃；开工后锁定 |
 | 10 | 贷款与债务上限 | ✅ 授信按信誉/年份；借/还/日计息；现金见底先自动透支 |
 | 11 | 信誉 | ✅ 0–100，影响报价；按期/逾期/贿赂都会改 |
@@ -311,7 +311,7 @@
 npm run dev            # 四个页面，127.0.0.1:5273
 npm run build          # 类型检查 + 打包到 dist/（相对路径，可 file:// 打开）
 npm run preview        # 本地预览打包结果
-npm run check          # 399 项断言的完整回归，提交前跑这个
+npm run check          # 400 项断言的完整回归，提交前跑这个
 
 # 单个检查台
 npm run design         # 19 辆历史车校准
@@ -375,7 +375,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `GameState` v3 新增 `design` / `factory` / `contract` / `offers`；`STATE_VERSION` 2 → 3
 - `save.ts` 清洗产品 / 产线 / 订单 / 招标；v1、v2 老存档可读
 - 游戏壳：产品下拉（按年代解锁）、三档招标卡、订单进度、产线状态、回款
-- `tools/economy-bench.ts`（M1 时 38 项，现 95 项）+ `economy` 脚本；`smoke:game` 扩到 94 项
+- `tools/economy-bench.ts`（M1 时 38 项，现 96 项）+ `economy` 脚本；`smoke:game` 扩到 94 项
 
 **规则（M1）**：
 
@@ -386,7 +386,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **M1 简化（已替换）**：空档期不烧维持费；换型即时免费；多线/贷款/信誉/竞品/贿赂/结算总表后来已接。
 
-**验证**：`npm run check` → 399 项断言；`npm run economy` → 95 项；`npm run smoke:game` → 94 项。
+**验证**：`npm run check` → 400 项断言；`npm run economy` → 96 项；`npm run smoke:game` → 94 项。
 
 ---
 
@@ -401,7 +401,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 数据修正：`ww2_simple` 年代 1944 → 1941（否则 T-34/76 会被判成超前 3 年，见 `data/parts.ts`）
 - 年代闸门：`designYear ≤ 当前年份 + 2`，同时在 `acceptOffer` 里兜底，防止绕过 UI
 
-**验证**：`npm run check` → 399 项；`smoke:tank` 36；`smoke:game` 94；`economy` 95。
+**验证**：`npm run check` → 400 项；`smoke:tank` 36；`smoke:game` 94；`economy` 96。
 
 ---
 
@@ -424,7 +424,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **还没做**：`density`、`barrelLife` 两项边缘系数；设计局没有科技快照时降级为沙盒。
 
-**验证**：`npm run check` → 399 项；`research` 49；`smoke:game` 94。
+**验证**：`npm run check` → 400 项；`research` 49；`smoke:game` 94。
 
 ---
 
@@ -441,7 +441,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **刻意不进评分**：装填 / 倒车 / 俯仰只进读数，避免 19 辆历史车分数漂移（决策 31）。
 
-**验证**：`npm run metrics` → 13 项；`smoke:tank` 36；`check` 399。
+**验证**：`npm run metrics` → 13 项；`smoke:tank` 36；`check` 400。
 
 ---
 
@@ -512,7 +512,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **结果**：毛利 15–25%，单台 3.1–12.8 天，4 台小单利润 ¥25 万–¥440 万；开局 ¥200 万够「4 台料 + 30 天工资」。
 
-**验证**：`npm run scale` 33；`check` 399。
+**验证**：`npm run scale` 33；`check` 400。
 
 ---
 
@@ -539,4 +539,4 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **决定：暂不做多合同**（选 B）。当前一局的核心决策已经够多（国家/产品/研发/接单方式/产能），多合同会先把 UI 与存档复杂度翻倍，而收益主要是后期。等核心循环稳定后再评估 A。
 
-**验证**：`npm run research` 49；`npm run metrics` 13；`smoke:tank` 36；`check` 399。
+**验证**：`npm run research` 49；`npm run metrics` 13；`smoke:tank` 36；`check` 400。
