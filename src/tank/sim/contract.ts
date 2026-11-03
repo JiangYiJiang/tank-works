@@ -46,6 +46,37 @@ export const TOPUP_UNITS = 5
 /** 逾期交付的单价折扣。 */
 export const LATE_PENALTY = 0.7
 
+/** 竞品设计商。按标轮换，不建 6 套 AI，先用「名字 + 分数」把竞争关系立起来。 */
+const RIVALS = ['莱茵金属', '维克斯', '施耐德', '克虏伯', '布尔什维克设计局', '岩崎重工'] as const
+
+/** 接单方式：原价 / 压价 5% / 贿赂。 */
+export type BidMode = 'normal' | 'undercut' | 'bribe'
+
+/** 稳定哈希：同一局、同一个时代、同一份标，竞品永远一样。 */
+function hash(...nums: number[]): number {
+  let h = 2166136261
+  for (const n of nums) {
+    h ^= n
+    h = Math.imul(h, 16777619)
+  }
+  return h >>> 0
+}
+
+/** 信誉对报价的乘数：0 → ×0.90，50 → ×1.00，100 → ×1.10。 */
+export function repMult(rep: number): number {
+  return 0.9 + Math.max(0, Math.min(100, rep)) / 500
+}
+
+/** 这份标按某种方式接，单价是多少。 */
+export function bidPrice(offer: Offer, rep: number, mode: BidMode): number {
+  const discount = mode === 'undercut' ? 0.95 : 1
+  return Math.round(offer.unitPrice * discount * repMult(rep))
+}
+
+function clampRep(rep: number): number {
+  return Math.max(0, Math.min(100, Math.round(rep)))
+}
+
 /** 每个时代客户参照的现役车。门槛与价都从这台车推出来，不手填。 */
 const ERA_REFS = [
   '雷诺 FT-17',
@@ -137,16 +168,23 @@ export function refreshOffers(state: GameState, force = false, day = state.day):
   }
   const totalMin = Math.round(tank.score.total * 0.55)
 
-  state.offers = VARIANTS.map((v) => ({
-    id: `${era}-${v.key}-${day}`,
-    nation: ref.nation,
-    ref: ref.name,
-    qty: v.qty,
-    deadline: Math.min(TOTAL_DAYS - 1, day + v.days),
-    unitPrice: Math.round(tank.cost.total * v.factor),
-    need: { ...need },
-    totalMin,
-  }))
+  state.offers = VARIANTS.map((v, i) => {
+    const h = hash(state.seed, era, day, i)
+    const rivalScore = Math.round(tank.score.total * (0.78 + (h % 19) / 100))
+    const rivalPrice = Math.round(tank.cost.total * v.factor * (0.9 + ((h >>> 8) % 21) / 100))
+    return {
+      id: `${era}-${v.key}-${day}`,
+      nation: ref.nation,
+      ref: ref.name,
+      qty: v.qty,
+      deadline: Math.min(TOTAL_DAYS - 1, day + v.days),
+      unitPrice: Math.round(tank.cost.total * v.factor),
+      need: { ...need },
+      totalMin,
+      rival: { name: RIVALS[h % RIVALS.length]!, score: rivalScore, price: rivalPrice },
+      bribeCost: Math.round(tank.cost.total * v.factor * v.qty * 0.08),
+    }
+  })
 }
 
 /** 两份制造参数是不是同一辆车（名字不算，参数才算）。 */
@@ -163,7 +201,7 @@ function sameSpec(a: LineSpec, b: LineSpec): boolean {
  * 接单。
  * 只有四维与总分都达标才能接 —— 这是「偏科的代价」唯一的入口，评分本身不扣分。
  */
-export function acceptOffer(state: GameState, offerId: string): AcceptResult {
+export function acceptOffer(state: GameState, offerId: string, mode: BidMode = 'normal'): AcceptResult {
   if (state.over) return { ok: false, msg: '这一局已经结束' }
   if (state.contract) return { ok: false, msg: '手上还有一张订单没交完' }
   const offer = state.offers.find((o) => o.id === offerId)
@@ -179,9 +217,37 @@ export function acceptOffer(state: GameState, offerId: string): AcceptResult {
   }
   if (!productMeets(tank, offer)) return { ok: false, msg: '四维或总分不达标，客户不会签' }
 
+  if (mode === 'bribe') {
+    if (state.cash < offer.bribeCost) {
+      return { ok: false, msg: `现金不够贿赂（需要 ¥${offer.bribeCost.toLocaleString('en-US')}）` }
+    }
+  } else {
+    const needScore = mode === 'undercut' ? offer.rival.score * 0.95 : offer.rival.score
+    if (tank.score.total < needScore) {
+      return {
+        ok: false,
+        msg: `竞品「${offer.rival.name}」总分 ${offer.rival.score}，你的 ${tank.score.total}：压价 5% 或走贿赂`,
+      }
+    }
+  }
+
   const spec = specOf(tank)
   const oneUnitMaterial = spec.unitKg * spec.yuanPerKg
-  if (state.cash < oneUnitMaterial) return { ok: false, msg: '现金不够买一台车的料' }
+  if (state.cash < oneUnitMaterial + (mode === 'bribe' ? offer.bribeCost : 0)) {
+    return { ok: false, msg: '现金不够买一台车的料' }
+  }
+
+  if (mode === 'bribe') {
+    state.cash -= offer.bribeCost
+    state.bribes++
+    pushLog(state, {
+      d: state.day,
+      k: 'order',
+      t: `贿赂 ¥${offer.bribeCost.toLocaleString('en-US')}：标是拿下了，账上多了一笔不能见光的支出。`,
+    })
+  }
+
+  const unitPrice = bidPrice(offer, state.rep, mode)
 
   if (!state.factory) state.factory = createFactory()
   let line = state.factory.lines[0]
@@ -203,7 +269,7 @@ export function acceptOffer(state: GameState, offerId: string): AcceptResult {
     line.spec.tank = spec.tank
   }
   line.state = 'running'
-  state.contract = { ...offer, delivered: 0, acceptedDay: state.day, late: false, paid: 0 }
+  state.contract = { ...offer, unitPrice, delivered: 0, acceptedDay: state.day, late: false, paid: 0 }
   state.offers = []
 
   // 首批备料：最多花掉 60% 现金，至少一台。
@@ -214,12 +280,39 @@ export function acceptOffer(state: GameState, offerId: string): AcceptResult {
   pushLog(state, {
     d: state.day,
     k: 'order',
-    t: `接单：${offer.nation} ${offer.qty} 台 ${offer.ref} 级，单价 ¥${offer.unitPrice.toLocaleString('en-US')}，交期 ${formatDate(offer.deadline)}。`,
+    t: `接单：${offer.nation} ${offer.qty} 台 ${offer.ref} 级，单价 ¥${unitPrice.toLocaleString('en-US')}${
+      mode === 'undercut' ? '（压价 5%）' : ''
+    }，交期 ${formatDate(offer.deadline)}。`,
   })
   return { ok: true, msg: `接单：${offer.qty} 台` }
 }
 
-/** 现货备料（M1 首批用）。 */
+/**
+ * 年度审计：贿赂不是免费的。
+ * 每笔未消账的贿赂让被抓概率 +10%，查到了罚款 + 信誉 −15；没查到也会把旧账抹掉。
+ * 确定性哈希，同一局同一年结果固定，方便回放和测试。
+ */
+export function auditBribes(state: GameState, day: number): boolean {
+  if (state.bribes <= 0) return false
+  const dt = dateOf(day)
+  if (dt.month !== 1 || dt.day !== 1) return false
+  const chance = Math.min(60, 15 + state.bribes * 10)
+  const caught = hash(state.seed, dt.year, 811) % 100 < chance
+  state.bribes = 0
+  if (!caught) {
+    pushLog(state, { d: day, k: 'money', t: '年度审计：旧账没被翻出来。' })
+    return false
+  }
+  const fine = Math.min(500_000, Math.max(0, Math.round(state.cash * 0.1)))
+  state.cash -= fine
+  state.rep = clampRep(state.rep - 15)
+  pushLog(state, {
+    d: day,
+    k: 'money',
+    t: `年度审计出事：罚款 ¥${fine.toLocaleString('en-US')}，信誉 −15。`,
+  })
+  return true
+}
 function buyImmediate(state: GameState, line: ProductionLine, units: number): number {
   const f = state.factory
   if (!f) return 0
@@ -305,6 +398,7 @@ export function economyDay(state: GameState, day: number): EconomyTick {
       k: 'money',
       t: `订单完成：${c.nation} ${c.qty} 台，${c.late ? '逾期结算' : '按期交付'}。`,
     })
+    state.rep = clampRep(state.rep + (c.late ? -5 : 2))
     state.contract = null
     if (line.state === 'running') line.state = 'idle'
     out.contractDone = true

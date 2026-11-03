@@ -7,7 +7,7 @@
  */
 
 import { ERAS, NEWS, TOTAL_DAYS } from './calendar'
-import { economyDay, refreshOffers } from './contract'
+import { auditBribes, economyDay, refreshOffers } from './contract'
 import { advanceResearch } from './research'
 import { daysToNextEvent, pushLog, type GameState } from './state'
 
@@ -83,6 +83,9 @@ export function advanceDays(state: GameState, days: number): AdvanceResult {
       if (tech.spent > 0) state.cash -= tech.spent
       if (tech.completed > 0) researchDone = true
     }
+
+    // 年度审计：有贿赂账才会真的掷骰子。
+    if (!state.over) auditBribes(state, d)
 
     // 现金见底：不管是因为工资、材料还是研发费，都算破产。
     if (!state.over && state.cash < 0) {

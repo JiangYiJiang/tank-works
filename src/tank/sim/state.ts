@@ -8,6 +8,7 @@
  *
  * v3 起，存档开始装「玩家真正做出来的东西」：当前产品、产线、订单、在手合同。
  * v4 再加研发：已掌握的技术世代、在研项目、买过的槽位/速度升级。
+ * v5 再加信誉与贿赂账，招标自带竞品报价。
  * 这些都是玩家动作的结果，重算不出来，必须存。
  */
 
@@ -17,7 +18,7 @@ import { STARTING_TECH } from '../data/tech'
 import type { RawDims, TankDesign } from '../types'
 import type { FactoryState } from './factory'
 
-export const STATE_VERSION = 4
+export const STATE_VERSION = 5
 
 /** 日志最多留这么多条。够看，又不会让存档随游戏时间一起涨。 */
 export const LOG_CAP = 160
@@ -39,6 +40,15 @@ export interface LogEntry {
   t: string
 }
 
+/** 竞品报价：同一份标，还有谁在抢。 */
+export interface RivalBid {
+  name: string
+  /** 竞品方案的总分 */
+  score: number
+  /** 竞品报的单价 */
+  price: number
+}
+
 /** 一份招标：客户、数量、交期、单价、四维门槛。 */
 export interface Offer {
   id: string
@@ -49,12 +59,16 @@ export interface Offer {
   qty: number
   /** 交期（绝对天序号） */
   deadline: number
-  /** 单台采购价 */
+  /** 单台采购价（基础价，信誉与压价在接单时算） */
   unitPrice: number
   /** 四维最低要求（原始物理量，不是分） */
   need: RawDims
   /** 总分门槛 */
   totalMin: number
+  /** 竞品 */
+  rival: RivalBid
+  /** 贿赂要花多少（一份标一次） */
+  bribeCost: number
 }
 
 /** 已经接下的订单。 */
@@ -113,6 +127,10 @@ export interface GameState {
   offers: Offer[]
   /** 研发：已掌握的技术、在研项目、升级 */
   research: ResearchState
+  /** 信誉 0–100：影响报价，逾期与贿赂被抓会掉 */
+  rep: number
+  /** 还没被查的贿赂次数 */
+  bribes: number
 }
 
 /** 开局掌握的技术：每条梯子取开局里最高的那一代。 */
@@ -149,6 +167,8 @@ export function createGame(seed: number): GameState {
     contract: null,
     offers: [],
     research: createResearch(),
+    rep: 50,
+    bribes: 0,
   }
   pushLog(state, { d: 0, k: 'note', t: `开工。${ERAS[state.era]!.blurb}` })
   pushLog(state, { d: 0, k: 'note', t: '厂里只有一条产线、一份刚开张的名声 —— 先看订单。' })

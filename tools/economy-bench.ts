@@ -9,7 +9,7 @@
 import { TOTAL_DAYS, dayOf } from '../src/tank/sim/calendar'
 import { advanceDays } from '../src/tank/sim/advance'
 import { START_CASH, createGame, type GameState } from '../src/tank/sim/state'
-import { acceptOffer, productCandidates, productMeets, refreshOffers } from '../src/tank/sim/contract'
+import { acceptOffer, auditBribes, bidPrice, productCandidates, productMeets, refreshOffers } from '../src/tank/sim/contract'
 import { buildTank } from '../src/tank/model/build'
 import { designYear } from '../src/tank/model/era'
 import { HISTORICAL } from '../src/tank/data/historical'
@@ -35,10 +35,15 @@ check('开局现金 200 万', g.cash === START_CASH, `实际 ${g.cash}`)
 check('开局产品是 FT-17', g.design.name === 'FT-17', g.design.name)
 check('开局没有产线', g.factory === null)
 check('开局没有订单', g.contract === null)
+check('开局信誉 50', g.rep === 50, String(g.rep))
 
 refreshOffers(g)
 check('开局有三份标', g.offers.length === 3, `实际 ${g.offers.length}`)
 check('标里有四维门槛', g.offers.every((o) => o.need.armor > 0 && o.totalMin > 0))
+check('每份标都有竞品与贿赂价', g.offers.every((o) => o.rival.score > 0 && o.bribeCost > 0))
+check('信誉 50 按原价', bidPrice(g.offers[0]!, 50, 'normal') === g.offers[0]!.unitPrice)
+check('信誉 100 能溢价', bidPrice(g.offers[0]!, 100, 'normal') > g.offers[0]!.unitPrice)
+check('压价 5% 更便宜', bidPrice(g.offers[0]!, 50, 'undercut') < bidPrice(g.offers[0]!, 50, 'normal'))
 check('FT-17 满足第一份标', productMeets(buildTank(g.design), g.offers[0]!))
 
 // ── 2. 接单 ────────────────────────────────────────────────
@@ -60,6 +65,7 @@ check('回款进了账', g.log.some((l) => l.t.includes('订单完成')))
 check('advanceDays 报告订单完成', adv.contractDone)
 check('交完后有新标', g.offers.length === 3, `实际 ${g.offers.length}`)
 check('交完后产线停工（不烧工资）', g.factory?.lines[0]?.state === 'idle', g.factory?.lines[0]?.state)
+check('按期交付信誉上涨', g.rep > 50, String(g.rep))
 
 // ── 4. 存档往返 ────────────────────────────────────────────
 const json = encodeSave(g)
@@ -113,6 +119,44 @@ const era3 = createGame(31)
 era3.era = 3
 refreshOffers(era3, true)
 check('二战标参照 T-34/76', era3.offers[0]?.ref.includes('T-34/76') === true, era3.offers[0]?.ref)
+
+// ── 9b. 竞品 / 贿赂 / 审计 ───────────────────────────────
+const rivalGame = createGame(41)
+refreshOffers(rivalGame)
+const rivalOffer = rivalGame.offers[0]!
+rivalOffer.rival.score = 99_999
+const lose = acceptOffer(rivalGame, rivalOffer.id)
+check('竞品分太高时 normal 被拒', !lose.ok && lose.msg.includes('竞品'), lose.msg)
+const bribed = acceptOffer(rivalGame, rivalOffer.id, 'bribe')
+check('贿赂能拿下标', bribed.ok, bribed.msg)
+check('贿赂次数记 1', rivalGame.bribes === 1, String(rivalGame.bribes))
+check('贿赂写进日志', rivalGame.log.some((l) => l.t.includes('贿赂')))
+
+const under = createGame(43)
+refreshOffers(under)
+const underOffer = under.offers[0]!
+const underTank = buildTank(under.design)
+underOffer.rival.score = Math.floor(underTank.score.total / 0.95)
+check('竞品刚好压过原价', !acceptOffer(under, underOffer.id).ok)
+const undercut = acceptOffer(under, underOffer.id, 'undercut')
+check('压价 5% 能拿下', undercut.ok, undercut.msg)
+check('压价合同单价更低', (under.contract?.unitPrice ?? 0) < bidPrice(underOffer, 50, 'normal'))
+check('压价写进日志', under.log.some((l) => l.t.includes('压价')))
+
+let auditCaught = false
+for (let y = 1916; y <= 1991 && !auditCaught; y++) {
+  const a = createGame(1)
+  a.bribes = 1
+  a.cash = 1_000_000
+  a.rep = 50
+  a.day = dayOf(y, 1, 1)
+  if (auditBribes(a, a.day)) {
+    auditCaught = true
+    check('审计罚款并扣信誉', a.cash < 1_000_000 && a.rep === 35, `${a.cash} / ${a.rep}`)
+    check('审计后旧账清零', a.bribes === 0)
+  }
+}
+check('审计最终会查出贿赂', auditCaught)
 
 // ── 10. 确定性与规模 ───────────────────────────────────────
 check('同种子同操作结果逐字节相同', encodeSave(runOrder(99, 0)) === encodeSave(runOrder(99, 0)))

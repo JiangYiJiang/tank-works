@@ -13,7 +13,7 @@ import { ERAS, TOTAL_DAYS, dateOf, formatDate, formatMonth, threatAt } from '../
 import { advanceDays, skipToNextEvent } from '../sim/advance'
 import { createGame, daysLeft, progress, pushLog, type GameState, type LogEntry } from '../sim/state'
 import { decodeSave, encodeSave } from '../sim/save'
-import { PRODUCT_LEAD_YEARS, acceptOffer, needText, productCandidates, productMeets, refreshOffers } from '../sim/contract'
+import { PRODUCT_LEAD_YEARS, acceptOffer, bidPrice, needText, productCandidates, productMeets, refreshOffers, type BidMode } from '../sim/contract'
 import {
   availableTechs,
   buyResearchUpgrade,
@@ -34,9 +34,9 @@ import { readAdopted } from '../../platform/design-handoff'
 import { writeTech } from '../../platform/tech-handoff'
 import type { SaveStore } from '../../platform/storage'
 
-const SAVE_KEY = 'tank-works.save.v4'
-/** 旧版本存档：v3 有产品/订单，v2 只有日期与现金。读回来继续用。 */
-const LEGACY_SAVE_KEYS = ['tank-works.save.v3', 'tank-works.save.v2'] as const
+const SAVE_KEY = 'tank-works.save.v5'
+/** 旧版本存档：v4 有研发，v3 只有产品/订单，v2 只有日期与现金。读回来继续用。 */
+const LEGACY_SAVE_KEYS = ['tank-works.save.v4', 'tank-works.save.v3', 'tank-works.save.v2'] as const
 const SPEEDS = [1, 3, 10, 30] as const
 const RENDER_INTERVAL_MS = 70
 const FEED_LIMIT = 60
@@ -145,6 +145,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   timeline.append(cursor)
 
   const cashValue = el('span', { class: 'kv-num cash-value' })
+  const repValue = el('span', { class: 'kv-num' })
   const leftValue = el('span', { class: 'kv-num' })
   const productSelect = el('select', { class: 'sel' })
   const productStats = el('div', { class: 'mini-grid' })
@@ -188,6 +189,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       { class: 'panel' },
       el('h2', { text: '厂子' }),
       el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '现金' }), cashValue),
+      el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '信誉' }), repValue),
       el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '剩余' }), leftValue),
       el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '产品' }), productSelect),
       productStats,
@@ -251,8 +253,8 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     save()
   }
 
-  function handleAccept(offerId: string): void {
-    const r = acceptOffer(state, offerId)
+  function handleAccept(offerId: string, mode: BidMode = 'normal'): void {
+    const r = acceptOffer(state, offerId, mode)
     if (!r.ok) {
       showFlash({ d: state.day, k: 'note', t: r.msg })
       return
@@ -580,7 +582,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     const line = state.factory?.lines[0]
     const sig = c
       ? `c|${c.id}|${c.delivered}|${c.paid}|${c.late}|${state.day}|${line?.state ?? ''}|${line?.starved ?? 0}`
-      : `o|${state.offers.map((o) => o.id).join(',')}|${designKey()}`
+      : `o|${state.offers.map((o) => o.id).join(',')}|${designKey()}|${state.rep}|${state.bribes}|${Math.round(state.cash)}`
     if (sig === offerSig) return
     offerSig = sig
     offersWrap.replaceChildren()
@@ -596,9 +598,16 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     const tank = buildTank(state.design, techMods(state.research))
     for (const o of state.offers) {
       const ok = productMeets(tank, o)
-      const btn = el('button', { class: 'chip chip-accept', text: ok ? '接单' : '不达标' })
-      btn.disabled = !ok
-      btn.addEventListener('click', () => handleAccept(o.id))
+      const acceptBtn = el('button', { class: 'chip chip-accept', text: ok ? '接单' : '不达标' })
+      acceptBtn.disabled = !ok
+      acceptBtn.addEventListener('click', () => handleAccept(o.id))
+      const underBtn = el('button', { class: 'chip chip-undercut', text: '压价 5%' })
+      underBtn.disabled = !ok
+      underBtn.addEventListener('click', () => handleAccept(o.id, 'undercut'))
+      const bribeBtn = el('button', { class: 'chip chip-bribe', text: `贿赂 ${Math.round(o.bribeCost / 1000)}k` })
+      bribeBtn.disabled = !ok || state.cash < o.bribeCost
+      bribeBtn.addEventListener('click', () => handleAccept(o.id, 'bribe'))
+      const price = bidPrice(o, state.rep, 'normal')
       offersWrap.append(
         el(
           'div',
@@ -613,10 +622,11 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
           el(
             'div',
             { class: 'offer-meta' },
-            el('span', { text: `${money(o.unitPrice)}/台` }),
+            el('span', { text: `${money(price)}/台` }),
             el('span', { text: `交期 ${formatDate(o.deadline)}` }),
           ),
-          btn,
+          el('div', { class: 'offer-rival', text: `竞品 ${o.rival.name} · 总分 ${o.rival.score} · 报价 ${money(o.rival.price)}/台` }),
+          el('div', { class: 'offer-actions' }, acceptBtn, underBtn, bribeBtn),
         ),
       )
     }
@@ -678,6 +688,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     eraBlurb.textContent = era.blurb
 
     cashValue.textContent = money(state.cash)
+    repValue.textContent = `${state.rep} / 100${state.bribes > 0 ? ` · 未消账 ${state.bribes}` : ''}`
     leftValue.textContent = state.over ? '—' : `${num(daysLeft(state))} 天`
 
     const threat = threatAt(state.day)

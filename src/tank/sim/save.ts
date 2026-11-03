@@ -44,6 +44,8 @@ export interface SaveFile {
   contract: ActiveContract | null
   offers: Offer[]
   research: ResearchState
+  rep: number
+  bribes: number
 }
 
 export function toSaveFile(s: GameState): SaveFile {
@@ -59,6 +61,8 @@ export function toSaveFile(s: GameState): SaveFile {
     contract: s.contract,
     offers: s.offers,
     research: s.research,
+    rep: s.rep,
+    bribes: s.bribes,
   }
 }
 
@@ -212,13 +216,23 @@ function coerceOffer(raw: unknown): Offer | null {
   const qty = Math.round(clamp(o.qty, 1, 10_000, NaN))
   const deadline = Math.round(clamp(o.deadline, 0, TOTAL_DAYS - 1, NaN))
   if (!Number.isFinite(qty) || !Number.isFinite(deadline)) return null
+  const unitPrice = clamp(o.unitPrice, 0, 1e12, 0)
+  const rawRival = obj(o.rival)
+  const rival =
+    rawRival && typeof rawRival.name === 'string'
+      ? {
+          name: rawRival.name.slice(0, 40),
+          score: clamp(rawRival.score, 0, 1e5, 0),
+          price: clamp(rawRival.price, 0, 1e12, unitPrice),
+        }
+      : { name: '旧标', score: 0, price: unitPrice }
   return {
     id: o.id.slice(0, 60),
     nation: o.nation.slice(0, 40),
     ref: o.ref.slice(0, 40),
     qty,
     deadline,
-    unitPrice: clamp(o.unitPrice, 0, 1e12, 0),
+    unitPrice,
     need: {
       armor: clamp(need.armor, 0, 1e5, 0),
       pen: clamp(need.pen, 0, 1e5, 0),
@@ -226,6 +240,8 @@ function coerceOffer(raw: unknown): Offer | null {
       adapt: clamp(need.adapt, 0, 1e5, 0),
     },
     totalMin: clamp(o.totalMin, 0, 1e5, 0),
+    rival,
+    bribeCost: clamp(o.bribeCost, 0, 1e12, Math.round(unitPrice * qty * 0.08)),
   }
 }
 
@@ -341,5 +357,7 @@ export function decodeSave(raw: string | null | undefined): GameState | null {
     contract,
     offers: contract ? [] : offers,
     research: coerceResearch(o.research),
+    rep: Math.round(clamp(o.rep, 0, 100, 50)),
+    bribes: Math.round(clamp(o.bribes, 0, 999, 0)),
   }
 }

@@ -439,6 +439,38 @@ body {
   background: rgba(217, 162, 78, 0.08);
 }
 
+.offer-rival {
+  margin-bottom: 6px;
+  color: var(--faint);
+  font-size: 10.5px;
+}
+
+.offer-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.offer-actions .chip {
+  width: auto;
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 10.5px;
+}
+
+.chip-undercut {
+  color: var(--cyan);
+  border-color: #1f3a40;
+}
+
+.chip-bribe {
+  color: var(--down);
+  border-color: #4a2a2a;
+}
+
+.chip-bribe:hover:not(:disabled) {
+  background: rgba(192, 90, 80, 0.08);
+}
+
 .chip:disabled {
   opacity: 0.4;
   cursor: not-allowed;
