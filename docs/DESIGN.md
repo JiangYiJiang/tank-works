@@ -654,7 +654,7 @@ restCost   = 其余质量 × 8
 
 ### 6.1 19 辆历史车当测试集
 
-`src/tank/data/historical.ts` 既是回归 fixture，也是游戏里的历史样车库。每辆车的部件组合与四项基准值都是查过资料的：
+`src/tank/data/historical.ts` 既是回归 fixture，也是校准表的来源；**设计局不再提供历史样车**，玩家从空设计开始。每辆车的部件组合与四项基准值都是查过资料的：
 
 | 基准 | 口径 | 单位 |
 |---|---|---|
@@ -1552,7 +1552,7 @@ v1–v6 老存档可以读：产品默认 FT-17，没有产线与订单，研发
 **四个调试入口**：
 
 ```
-/tank.html?tank=虎王          直接打开某辆历史车
+/game.html?design=1           直接打开游戏内设计覆盖层
 /research.html?year=1960      把「今天」拨到 1960
 /manufacture.html?days=200    开局直接推进 200 天
 /game.html?day=9009           从某一天开局（1939-09-01）
@@ -1601,7 +1601,7 @@ tank-works/
 │  │  ├─ data/
 │  │  │  ├─ parts.ts         18 车体 / 6 材料 / 19 炮 / 17 发动机 / 18 悬挂 / 12 辅助
 │  │  │  ├─ tech.ts          159 条技术 + 升级表 + 系数
-│  │  │  └─ historical.ts    19 辆历史车（回归 fixture + 样车库）
+│  │  │  └─ historical.ts    19 辆历史车（回归 fixture）
 │  │  ├─ model/
 │  │  │  ├─ tuning.ts        全部魔法数（一页看完）
 │  │  │  ├─ geometry.ts  mass.ts  armor.ts  gun.ts  ballistics.ts
@@ -1817,7 +1817,7 @@ npm install           # 首次
 npm run dev           # 开发服务器 127.0.0.1:5273，四个页面
 npm run build         # 构建到 dist/（四个入口，相对路径）
 npm run preview       # 预览打包结果
-npm run check         # 全部检查：类型 + 校准 + 节奏 + 五套冒烟 + 研发 + 指标 + 经济 + 尺度（423 项断言）
+npm run check         # 全部检查：类型 + 校准 + 节奏 + 五套冒烟 + 研发 + 指标 + 经济 + 尺度（425 项断言）
 
 npm run design        # 19 辆历史车校准表
 npm run ballistics    # 弹道两轴表
@@ -1829,8 +1829,8 @@ npm run metrics       # 设计局指标验收（抗破、装填、倒车、俯�
 npm run scale         # 经济尺度：8 个时代的毛利 / 工期 / 首单技术
 npm run economy       # 经济闭环验收（竞品、压价、贿赂、审计、交付、回款）
 
-npm run smoke:tank    # 设计局界面 36 项
-npm run smoke:game    # 游戏壳界面 101 项
+npm run smoke:tank    # 设计局界面 37 项
+npm run smoke:game    # 游戏壳界面 102 项
 npm run menu          # 主菜单界面 16 项
 npm run smoke:research # 研发局界面 27 项
 npm run smoke:mf      # 制造局界面 21 项

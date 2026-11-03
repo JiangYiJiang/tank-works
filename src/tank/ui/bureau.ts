@@ -108,13 +108,28 @@ function eraBenchmark(year: number, total: number) {
 // 主界面
 // ────────────────────────────────────────────────────────────
 
-export function mountBureau(root: HTMLElement): void {
+const SVG_NS = 'http://www.w3.org/2000/svg'
+
+function svgEl<K extends keyof SVGElementTagNameMap>(
+  tag: K,
+  attrs: Record<string, string> = {},
+): SVGElementTagNameMap[K] {
+  const node = document.createElementNS(SVG_NS, tag)
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v)
+  return node
+}
+
+export interface BureauOptions {
+  /** 测试 / 嵌入时指定起点；不给就从空设计开始 */
+  initialDesign?: TankDesign
+}
+
+export function mountBureau(root: HTMLElement, opts: BureauOptions = {}): void {
   const embedded = new URLSearchParams(location.search).get('embedded') === '1'
   /** 主循环发布的科技快照；没有就是沙盒模式（全部零件可选）。 */
   const tech = readTech()
   const techState = tech ? { mastered: tech.mastered, projects: [], upgrades: [] } : null
   const allowed = tech?.parts
-  const fits = (design: TankDesign): boolean => !techState || designCheck(design, techState).ok
 
   const hulls = allowed ? HULLS.filter((h) => allowed.hull.includes(h.id)) : HULLS
   const materials = allowed ? ARMOR_MATERIALS.filter((m) => allowed.material.includes(m.id)) : ARMOR_MATERIALS
@@ -123,22 +138,37 @@ export function mountBureau(root: HTMLElement): void {
   const suspensions = allowed ? SUSPENSIONS.filter((s) => allowed.suspension.includes(s.id)) : SUSPENSIONS
   const auxes = allowed ? AUXES.filter((a) => allowed.aux.includes(a.id)) : AUXES
 
+  const blankDesign = (): TankDesign => {
+    const hull = hulls[0] ?? HULLS[0]!
+    const material = materials[0] ?? ARMOR_MATERIALS[0]!
+    const gun = guns[0] ?? GUNS[0]!
+    const engine = engines[0] ?? ENGINES[0]!
+    const susp = suspensions[0] ?? SUSPENSIONS[0]!
+    const aux = auxes[0] ?? AUXES[0]!
+    return {
+      name: '新设计',
+      hull: hull.id,
+      armor: {
+        material: material.id,
+        front: 16,
+        frontSlope: 0,
+        side: 16,
+        turretFront: 16,
+        turretSlope: 0,
+      },
+      gun: gun.id,
+      engine: engine.id,
+      suspension: susp.id,
+      aux: aux.id,
+    }
+  }
+
   /**
-   * 默认从 T-34/76 起手 —— 中间点最容易看出「改一处，掉多少」。
-   * 支持 `?tank=虎王` 直接打开某辆历史车，方便复现和截图。
-   * 有科技快照时，只从「现在造得出来」的样车里挑。
-   * 从主循环打开（embedded）时，用当前这一局的产品做起点。
+   * 设计局不提供历史样车：从主循环打开时用当前这一局的产品做起点，
+   * 独立打开时从一份空设计开始。`initialDesign` 只给测试/调试用。
    */
   const draft = embedded ? readDraft() : null
-  const wanted = embedded ? null : new URLSearchParams(location.search).get('tank')
-  const requested =
-    (wanted ? SAMPLES.find((s) => s.name.includes(wanted) || s.design.name.includes(wanted)) : undefined) ?? undefined
-  const initial =
-    (requested && fits(requested.design) ? requested : undefined) ??
-    SAMPLES.find((s) => s.design.name === 'T-34/76' && fits(s.design)) ??
-    SAMPLES.find((s) => fits(s.design)) ??
-    SAMPLES[0]!
-  const design: TankDesign = structuredClone(draft ?? initial.design)
+  const design: TankDesign = structuredClone(opts.initialDesign ?? draft ?? blankDesign())
   if (tech && tech.limits.pike <= 1) delete design.armor.pike
 
   const controls: Control[] = []
@@ -239,28 +269,8 @@ export function mountBureau(root: HTMLElement): void {
     slots.append(control.node)
   }
 
-  group('样车')
-  const presetSel = el('select', { class: 'sel' })
-  presetSel.append(el('option', { value: '', text: '— 载入一辆历史样车 —' }))
-  for (const s of SAMPLES) {
-    if (techState && !fits(s.design)) continue
-    presetSel.append(el('option', { value: s.design.name, text: `${s.year}  ${s.name}` }))
-  }
-  presetSel.addEventListener('change', () => {
-    const picked = SAMPLES.find((s) => s.design.name === presetSel.value)
-    if (!picked) return
-    Object.assign(design, structuredClone(picked.design))
-    // mods 是可选字段：Object.assign 不会删掉源对象上没有的键，
-    // 所以换样车时必须手动清掉上一辆车的弹药改装。
-    if (picked.design.mods) design.mods = structuredClone(picked.design.mods)
-    else delete design.mods
-    for (const c of controls) c.sync()
-    update()
-  })
-  presetSel.value = design.name
-  slots.append(el('label', { class: 'row' }, presetSel))
-
-  // 型号名：样车带一个默认名，玩家可以改成自己的型号。
+  group('型号')
+  // 型号名：玩家自己起名。
   const nameInput = el('input', { class: 'txt', maxlength: '24', value: design.name }) as HTMLInputElement
   nameInput.addEventListener('input', () => {
     design.name = nameInput.value.trim().slice(0, 24) || '未命名'
@@ -459,21 +469,31 @@ export function mountBureau(root: HTMLElement): void {
   // 「弹道」：穿深不是一维的数。这一栏故意同时给出「实板」和「视线」两个口径，
   // 因为它们差一个 cos θ，玩家一旦混用就会算错倾角带来的收益。
   const BAL_DIST = [100, 500, 1000, 1500, 2000] as const
-  const balCols = BAL_DIST.map((d) => {
-    const bar = el('div', { class: 'bal-bar' })
-    const val = el('div', { class: 'bal-val' })
-    return {
-      d,
-      bar,
-      val,
-      node: el(
-        'div',
-        { class: 'bal-col' },
-        val,
-        el('div', { class: 'bal-track' }, bar),
-        el('div', { class: 'bal-x', text: d >= 1000 ? `${d / 1000}km` : `${d}m` }),
-      ),
-    }
+  const balSvg = svgEl('svg', { class: 'bal-svg', viewBox: '0 0 680 200', role: 'img' })
+  balSvg.append(
+    svgEl('line', { class: 'bal-axis', x1: '40', y1: '162', x2: '642', y2: '162' }),
+    svgEl('line', { class: 'bal-axis', x1: '40', y1: '18', x2: '40', y2: '162' }),
+  )
+  for (const frac of [0.25, 0.5, 0.75]) {
+    balSvg.append(
+      svgEl('line', {
+        class: 'bal-grid',
+        x1: '40',
+        y1: String(18 + frac * 144),
+        x2: '642',
+        y2: String(18 + frac * 144),
+      }),
+    )
+  }
+  const balLine = svgEl('polyline', { class: 'bal-line' })
+  balSvg.append(balLine)
+  const balPoints = BAL_DIST.map((d, i) => {
+    const dot = svgEl('circle', { class: 'bal-point', r: '4' })
+    const val = svgEl('text', { class: 'bal-val', 'text-anchor': 'middle' })
+    const xlab = svgEl('text', { class: 'bal-x', 'text-anchor': 'middle', y: '184' })
+    xlab.textContent = d >= 1000 ? `${d / 1000}km` : `${d}m`
+    balSvg.append(dot, val, xlab)
+    return { d, i, dot, val, xlab }
   })
 
   const BAL_ANGLES = [0, 30, 45, 60] as const
@@ -505,7 +525,7 @@ export function mountBureau(root: HTMLElement): void {
       'div',
       { class: 'bal-body' },
       el('div', { class: 'bal-sub', text: '距离 · 能打穿多厚的垂直板' }),
-      el('div', { class: 'bal-chart' }, ...balCols.map((c) => c.node)),
+      el('div', { class: 'bal-chart' }, balSvg),
       el('div', { class: 'bal-sub', text: '倾角 · 实板厚度 / 视线等效' }),
       el('div', { class: 'bal-slopes' }, ...balSlopes.map((s) => s.node)),
       balTip,
@@ -705,19 +725,30 @@ export function mountBureau(root: HTMLElement): void {
 
     // ── 弹道两轴 ──
     const b = tank.ballistics
-    const maxPen = Math.max(1, b.pen100)
-    BAL_DIST.forEach((d, i) => {
-      const col = balCols[i]!
-      const v =
-        d === 500
-          ? b.pen500
-          : d === 1000
-            ? b.pen1000
-            : d === 2000
-              ? b.pen2000
-              : penetrationAt(b.pen500, d, b.keep2k)
-      col.val.textContent = nf(v)
-      col.bar.style.height = `${Math.max(3, (v / maxPen) * 100)}%`
+    const pens = BAL_DIST.map((d) =>
+      d === 500
+        ? b.pen500
+        : d === 1000
+          ? b.pen1000
+          : d === 2000
+            ? b.pen2000
+            : penetrationAt(b.pen500, d, b.keep2k),
+    )
+    const maxPen = Math.max(1, ...pens) * 1.1
+    const coords = pens.map((v, i) => {
+      const x = 40 + (i * 602) / (BAL_DIST.length - 1)
+      const y = 162 - (v / maxPen) * 144
+      return { x, y }
+    })
+    balLine.setAttribute('points', coords.map((c) => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' '))
+    balPoints.forEach((c, i) => {
+      const { x, y } = coords[i]!
+      c.dot.setAttribute('cx', x.toFixed(1))
+      c.dot.setAttribute('cy', y.toFixed(1))
+      c.val.setAttribute('x', x.toFixed(1))
+      c.val.setAttribute('y', String(Math.max(12, y - 9)))
+      c.val.textContent = nf(pens[i]!)
+      c.xlab.setAttribute('x', x.toFixed(1))
     })
 
     BAL_ANGLES.forEach((a, i) => {

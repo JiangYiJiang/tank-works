@@ -25,7 +25,7 @@
 
 **一句话：主循环能转、科技树能推、设计能卖、标能抢、阵营能卡、钱能借、线能加、账能算；联机不做。**
 
-检查台现状：`npm run check` = 类型检查 + 13 个检查台，**423 项断言全绿**（见 §1.13）。
+检查台现状：`npm run check` = 类型检查 + 13 个检查台，**425 项断言全绿**（见 §1.13）。
 
 ---
 
@@ -45,14 +45,14 @@
 
 ### 1.2 设计局界面（第 2 步）✅
 
-- 六槽位 + 连续滑条（厚度、倾角）+ 样车库
+- 六槽位 + 连续滑条（厚度、倾角）+ 型号名；**不提供历史样车，从空设计/当前产品开始**
 - 四维条、19 项物理量（含抗破 / 装填 / 倒车 / 俯仰）、**耦合与代价四条链**、成本四项、缺陷列表、同期对比
-- 弹道面板：5 个距离点柱状图 + 4 档倾角 + 一句话解释 + 「打得穿/打不穿」自检；破甲弹对比抗破
+- 弹道面板：**距离-穿深折线图** + 4 档倾角 + 一句话解释 + 「打得穿/打不穿」自检；破甲弹对比抗破
 - 型号名输入 + 右上角「采用此设计」→ 主循环里「导入设计局的车」
 - **游戏内设计**：产品面板「设计本厂车」打开覆盖层，用当前产品做起点，改完直接应用回本局
 - 独立 `/tank.html` 仍可预览；游戏内入口是正式路径
 
-**验证**：`npm run smoke:tank` → **36 项断言**（含换弹种后 5 个距离点数值相同、长杆弹 2km 保持率高于被帽弹、文案分支正确、「采用此设计」写出交接）
+**验证**：`npm run smoke:tank` → **37 项断言**（空设计起点、折线图、换弹种、采用交接）
 
 ### 1.3 时钟与事件系统（第 3 步）✅
 
@@ -180,12 +180,12 @@
 | 设计指标 | `npm run metrics` | 13 | ✅ |
 | 经济尺度 | `npm run scale` | 33 | ✅ |
 | 经济 | `npm run economy` | 96 | ✅ |
-| 设计局界面 | `npm run smoke:tank` | 36 | ✅ |
-| 游戏壳界面 | `npm run smoke:game` | 101 | ✅ |
+| 设计局界面 | `npm run smoke:tank` | 37 | ✅ |
+| 游戏壳界面 | `npm run smoke:game` | 102 | ✅ |
 | 主菜单界面 | `npm run menu` | 16 | ✅ |
 | 研发局界面 | `npm run smoke:research` | 27 | ✅ |
 | 制造局界面 | `npm run smoke:mf` | 21 | ✅ |
-| **合计** | | **423 项断言** | |
+| **合计** | | **425 项断言** | |
 
 ---
 
@@ -327,7 +327,7 @@
 npm run dev            # 四个页面，127.0.0.1:5273
 npm run build          # 类型检查 + 打包到 dist/（相对路径，可 file:// 打开）
 npm run preview        # 本地预览打包结果
-npm run check          # 423 项断言的完整回归，提交前跑这个
+npm run check          # 425 项断言的完整回归，提交前跑这个
 
 # 单个检查台
 npm run design         # 19 辆历史车校准
@@ -403,7 +403,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **M1 简化（已替换）**：空档期不烧维持费；换型即时免费；多线/贷款/信誉/竞品/贿赂/结算总表后来已接。
 
-**验证**：`npm run check` → 420 项断言；`npm run economy` → 96 项；`npm run smoke:game` → 99 项。
+**验证**：`npm run check` → 425 项断言；`npm run economy` → 96 项；`npm run smoke:game` → 102 项。
 
 ---
 
@@ -418,7 +418,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 数据修正：`ww2_simple` 年代 1944 → 1941（否则 T-34/76 会被判成超前 3 年，见 `data/parts.ts`）
 - 年代闸门：`designYear ≤ 当前年份 + 2`，同时在 `acceptOffer` 里兜底，防止绕过 UI
 
-**验证**：`npm run check` → 420 项；`smoke:tank` 36；`smoke:game` 99；`economy` 96。
+**验证**：`npm run check` → 425 项；`smoke:tank` 37；`smoke:game` 102；`economy` 96。
 
 ---
 
@@ -458,7 +458,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **刻意不进评分**：装填 / 倒车 / 俯仰只进读数，避免 19 辆历史车分数漂移（决策 31）。
 
-**验证**：`npm run metrics` → 13 项；`smoke:tank` 36；`check` 400。
+**验证**：`npm run metrics` → 13 项；`smoke:tank` 37；`check` 425。
 
 ---
 
@@ -556,7 +556,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **决定：暂不做多合同**（选 B）。当前一局的核心决策已经够多（国家/产品/研发/接单方式/产能），多合同会先把 UI 与存档复杂度翻倍，而收益主要是后期。等核心循环稳定后再评估 A。
 
-**验证**：`npm run research` 49；`npm run metrics` 13；`smoke:tank` 36；`check` 420。
+**验证**：`npm run research` 49；`npm run metrics` 13；`smoke:tank` 37；`check` 425。
 
 ---
 
@@ -570,7 +570,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `src/tank/menu.css`：深色蓝图风、响应式；`docs/images/menu.png`
 - `src/platform/save-keys.ts`：存档键集中，壳与菜单共用
 
-**验证**：`npm run menu` 16；`check` 423。
+**验证**：`npm run menu` 16；`check` 425。
 
 ---
 
@@ -584,4 +584,4 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 点应用后 `postMessage` 回主循环；主循环用 `buildTank` + `designCheck` 再校验，通过后替换 `state.design`
 - 关闭覆盖层清草稿；科技快照仍由主循环发布，零件表按当前科技过滤
 
-**验证**：`smoke:game` 101；`check` 423。
+**验证**：`smoke:game` 102；`check` 425。

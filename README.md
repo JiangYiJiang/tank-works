@@ -34,8 +34,8 @@
 调试入口：
 
 ```
+/game.html?design=1             直接打开游戏内设计覆盖层
 /game.html?day=9009            从 1939-09-01 开局
-/tank.html?tank=虎王           直接打开某辆历史车
 /research.html?year=1960       把「今天」拨到 1960
 /manufacture.html?days=200     制造局开局直接推进 200 天
 ```
@@ -45,7 +45,7 @@
 ```bash
 npm install
 npm run dev        # http://127.0.0.1:5273/  （根路径是主菜单）
-npm run check      # 类型检查 + 校准 + 弹道 + 科技节奏 + 时钟 + 研发 + 指标 + 尺度 + 经济 + 五套界面冒烟 = 423 项断言
+npm run check      # 类型检查 + 校准 + 弹道 + 科技节奏 + 时钟 + 研发 + 指标 + 尺度 + 经济 + 五套界面冒烟 = 425 项断言
 npm run build      # 打包到 dist/（相对路径，可直接 file:// 打开）
 ```
 

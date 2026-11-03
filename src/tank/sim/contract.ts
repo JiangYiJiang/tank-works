@@ -315,7 +315,7 @@ export function acceptOffer(state: GameState, offerId: string, mode: BidMode = '
   pushLog(state, {
     d: state.day,
     k: 'order',
-    t: `接单：${offer.nation} ${offer.qty} 台 ${offer.ref} 级，单价 ¥${unitPrice.toLocaleString('en-US')}${
+    t: `接单：${offer.nation} ${offer.qty} 台，单价 ¥${unitPrice.toLocaleString('en-US')}${
       mode === 'undercut' ? '（压价 5%）' : ''
     }，交期 ${formatDate(offer.deadline)}。`,
   })

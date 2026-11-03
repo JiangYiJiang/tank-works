@@ -18,6 +18,7 @@ Object.assign(globalThis, {
 })
 
 const { mountBureau } = await import('../src/tank/ui/bureau')
+const { HISTORICAL } = await import('../src/tank/data/historical')
 
 let pass = 0
 let fail = 0
@@ -34,7 +35,8 @@ function check(name: string, cond: boolean, detail = ''): void {
 
 const root = doc.createElement('div') as unknown as HTMLElement
 doc.body.appendChild(root as never)
-mountBureau(root)
+const tiger = HISTORICAL.find((h) => h.name.includes('虎王'))!
+mountBureau(root, { initialDesign: tiger.design })
 
 const text = (): string => (root as unknown as { textContent: string }).textContent.replace(/\s+/g, ' ')
 const total = (): string => {
@@ -55,7 +57,7 @@ const massT = (): number => {
 
 const t0 = total()
 const m0 = massT()
-check('默认载入 T-34/76，总分 2,092', t0 === '2,092', `实际 ${t0}`)
+check('测试起点是虎王，总分 2,934', t0 === '2,934', `实际 ${t0}`)
 check('渲染出车体下拉', root.querySelectorAll('select').length >= 6)
 check('渲染出四个维度条', root.querySelectorAll('.dim').length >= 4)
 check('渲染出耦合与代价四行', root.querySelectorAll('.couple-row').length === 4)
@@ -80,18 +82,13 @@ if (slope) {
   check('找得到首上倾角滑条', false)
 }
 
-// 载入虎王样车
-const presets = [...root.querySelectorAll('select')][0] as unknown as HTMLSelectElement
-const tiger = [...presets.options].find((o) => o.textContent?.includes('虎王'))
-if (tiger) {
-  presets.value = tiger.value
-  presets.dispatchEvent(new win.Event('change') as unknown as Event)
-  check('载入虎王后总分 2,934', total() === '2,934', `实际 ${total()}`)
-  check('虎王报出接地压力缺陷', text().includes('接地压力过大'))
-  check('虎王吨功率 8.9 hp/t', text().includes('8.9'))
-} else {
-  check('样车下拉里能找到虎王', false)
-}
+// 设计局不再提供历史样车下拉
+check(
+  '没有历史样车下拉',
+  ![...root.querySelectorAll('select')].some((s) =>
+    [...(s as HTMLSelectElement).options].some((o) => o.textContent?.includes('历史样车')),
+  ),
+)
 
 // ── 弹道两轴 ──────────────────────────────────────────────
 // 虎王的 88mm KwK43：171 / 151 / 128 / 109 / 93，被帽弹 2km 保持 62%
@@ -100,7 +97,8 @@ const balVals = (): string[] =>
 const balSlopeNums = (): string[] =>
   [...root.querySelectorAll('.bal-num')].map((n) => (n.textContent ?? '').trim())
 
-check('弹道面板有五个距离点', root.querySelectorAll('.bal-col').length === 5)
+check('弹道面板有五个距离点', root.querySelectorAll('.bal-point').length === 5)
+check('弹道是折线图', root.querySelectorAll('.bal-line').length === 1)
 check('弹道面板有四档倾角', root.querySelectorAll('.bal-sc').length === 4)
 
 const bv = balVals()
@@ -162,6 +160,19 @@ if (adoptBtn && nameInput) {
   check('交接里带完整设计', typeof payload?.design?.hull === 'string')
   check('采用后界面给出回执', (root.querySelector('.adopt-note')?.textContent ?? '').includes('已采用'))
 }
+
+// ── 独立打开：从空设计开始 ────────────────────────────────
+const blankRoot = doc.createElement('div') as unknown as HTMLElement
+doc.body.appendChild(blankRoot as never)
+mountBureau(blankRoot)
+const blankName = (blankRoot.querySelector('.txt') as HTMLInputElement | null)?.value ?? ''
+check('独立打开默认是空设计', blankName === '新设计', blankName)
+check(
+  '空设计没有历史车选项',
+  ![...blankRoot.querySelectorAll('select')].some((s) =>
+    [...(s as HTMLSelectElement).options].some((o) => o.textContent?.includes('历史样车')),
+  ),
+)
 
 // 存档往返无关，但 URL 参数要能用
 check('文字里没有英文报错', !/Error|Cannot read/.test(text()))

@@ -882,11 +882,11 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
           el(
             'div',
             { class: 'offer-top' },
-            el('span', { class: 'offer-ref', text: `${o.nation} · ${o.ref} 级` }),
+            el('span', { class: 'offer-ref', text: `${o.nation} · 招标` }),
             el('span', { class: 'offer-qty', text: `${o.qty} 台` }),
           ),
           el('div', { class: 'offer-need', text: needText(o) }),
-          el('div', { class: 'offer-force', text: `${o.nation}现役：${o.ref} · 需求 ${o.qty} 台` }),
+          el('div', { class: 'offer-force', text: `需求 ${o.qty} 台 · 只按指标验收` }),
           el(
             'div',
             { class: 'offer-meta' },
@@ -926,7 +926,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       el(
         'div',
         { class: 'contract-head' },
-        el('span', { class: 'contract-ref', text: `${c.nation} · ${c.ref} 级` }),
+        el('span', { class: 'contract-ref', text: `${c.nation} · ${c.qty} 台` }),
         el('span', { class: `badge ${late ? 'bad' : 'ok'}`, text: due }),
       ),
       el('div', { class: 'meter' }, meterFill),
