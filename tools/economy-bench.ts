@@ -15,6 +15,7 @@ import { designYear } from '../src/tank/model/era'
 import { HISTORICAL } from '../src/tank/data/historical'
 import { blocOf, customerAllowed } from '../src/tank/data/nations'
 import { decodeSave, encodeSave } from '../src/tank/sim/save'
+import { borrow, creditLimit, repay } from '../src/tank/sim/loan'
 
 let pass = 0
 let fail = 0
@@ -63,6 +64,9 @@ check('订单已交完', g.contract === null, g.contract ? `${g.contract.deliver
 check('产线生产过', (g.factory?.produced ?? 0) >= offer.qty, `实际 ${g.factory?.produced}`)
 check('现金为正', g.cash > 0, `实际 ${g.cash}`)
 check('回款进了账', g.log.some((l) => l.t.includes('订单完成')))
+check('累计账记了回款', g.stats.revenue > 0, String(g.stats.revenue))
+check('累计账记了材料与工资', g.stats.material > 0 && g.stats.wages > 0)
+check('累计账记了订单与出车', g.stats.contracts === 1 && g.stats.produced >= offer.qty)
 check('advanceDays 报告订单完成', adv.contractDone)
 check('交完后有新标', g.offers.length === 3, `实际 ${g.offers.length}`)
 check('交完后产线停工（不烧工资）', g.factory?.lines[0]?.state === 'idle', g.factory?.lines[0]?.state)
@@ -104,6 +108,29 @@ check('国家保留在存档里', loaded?.home === g.home)
 check('产线保留', loaded?.factory?.produced === g.factory?.produced)
 check('存档往返稳定', loaded ? encodeSave(loaded) === json : false)
 
+// ── 4b. 贷款 / 利息 / 自动透支 ────────────────────────────
+const bank = createGame(71)
+const limit = creditLimit(bank)
+check('开局有授信', limit >= 2_000_000, String(limit))
+const cashBank = bank.cash
+const b1 = borrow(bank, 500_000)
+check('借钱成功', b1.ok, b1.msg)
+check('借款进现金、进债务', bank.cash === cashBank + 500_000 && bank.debt === 500_000, `${bank.cash} / ${bank.debt}`)
+check('还款成功', repay(bank, 200_000).ok && bank.debt === 300_000, String(bank.debt))
+check('超额借款被拒', !borrow(bank, limit).ok)
+
+const interestGame = createGame(73)
+interestGame.debt = 1_000_000
+advanceDays(interestGame, 365)
+check('一年后债务变多', interestGame.debt > 1_000_000, String(interestGame.debt))
+check('累计利息进账本', interestGame.stats.interest > 0, String(interestGame.stats.interest))
+
+const auto = createGame(75)
+auto.cash = -100
+const autoRes = advanceDays(auto, 1)
+check('现金见底先自动透支', !auto.over && auto.cash >= 0 && auto.debt > 0, `${auto.cash} / ${auto.debt}`)
+check('自动透支有日志', auto.log.some((l) => l.t.includes('自动透支')))
+
 // ── 5. 逾期：同样一局，逾期结算拿得更少 ────────────────────
 function runOrder(seed: number, lateBy: number): GameState {
   const s = createGame(seed)
@@ -123,6 +150,7 @@ const broke = createGame(13)
 refreshOffers(broke)
 acceptOffer(broke, broke.offers[0]!.id)
 broke.cash = 1
+broke.debt = creditLimit(broke) // 授信已经用满，银行不会再救
 const brokeRes = advanceDays(broke, 10)
 check('现金见底会破产', broke.over && brokeRes.ended && broke.log.some((l) => l.t.includes('破产')))
 

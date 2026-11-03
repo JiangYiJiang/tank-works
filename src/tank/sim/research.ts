@@ -262,6 +262,7 @@ export function startResearch(state: GameState, tierId: string): ActionResult {
   if (state.cash < effort.cost) return { ok: false, msg: `现金不够（需要 ¥${effort.cost.toLocaleString('en-US')}）` }
 
   state.cash -= effort.cost
+  state.stats.research += effort.cost
   state.research.projects.push({
     ladder: tier.ladder,
     tier: tier.tier,
@@ -416,6 +417,7 @@ export function techSnapshot(state: GameState): TechSnapshot {
   if (dateOf(state.day).year < entry.u.year) return { ok: false, msg: `${entry.u.year} 年才开放` }
   if (state.cash < entry.u.cost) return { ok: false, msg: `现金不够（需要 ¥${entry.u.cost.toLocaleString('en-US')}）` }
   state.cash -= entry.u.cost
+  state.stats.research += entry.u.cost
   state.research.upgrades.push(id)
   pushLog(state, {
     d: state.day,

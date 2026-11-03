@@ -31,13 +31,20 @@ import { NATIONS } from '../data/nations'
 import { buildTank } from '../model/build'
 import { designYear } from '../model/era'
 import { daysPerUnit, inTransitKg, stockOf } from '../sim/factory'
+import { LOAN_STEP, availableCredit, borrow, creditLimit, repay } from '../sim/loan'
 import { readAdopted } from '../../platform/design-handoff'
 import { writeTech } from '../../platform/tech-handoff'
 import type { SaveStore } from '../../platform/storage'
 
-const SAVE_KEY = 'tank-works.save.v6'
-/** 旧版本存档：v5 有信誉/贿赂，v4 有研发，v3 只有产品/订单，v2 只有日期与现金。 */
-const LEGACY_SAVE_KEYS = ['tank-works.save.v5', 'tank-works.save.v4', 'tank-works.save.v3', 'tank-works.save.v2'] as const
+const SAVE_KEY = 'tank-works.save.v7'
+/** 旧版本存档：v6 有国家，v5 有信誉/贿赂，v4 有研发，v3 产品/订单，v2 日期/现金。 */
+const LEGACY_SAVE_KEYS = [
+  'tank-works.save.v6',
+  'tank-works.save.v5',
+  'tank-works.save.v4',
+  'tank-works.save.v3',
+  'tank-works.save.v2',
+] as const
 const SPEEDS = [1, 3, 10, 30] as const
 const RENDER_INTERVAL_MS = 70
 const FEED_LIMIT = 60
@@ -150,6 +157,10 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   const homeSelect = el('select', { class: 'sel home-select' })
   for (const n of NATIONS) homeSelect.append(el('option', { value: n.id, text: n.name }))
   homeSelect.value = state.home
+  const debtValue = el('span', { class: 'kv-num debt-value' })
+  const borrowBtn = el('button', { class: 'chip chip-bank', type: 'button', text: '借 50 万' })
+  const repayBtn = el('button', { class: 'chip chip-bank', type: 'button', text: '还 50 万' })
+  const bankRow = el('div', { class: 'bank-row' }, borrowBtn, repayBtn)
   const leftValue = el('span', { class: 'kv-num' })
   const productSelect = el('select', { class: 'sel product-select' })
   const productStats = el('div', { class: 'mini-grid' })
@@ -195,6 +206,8 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '现金' }), cashValue),
       el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '信誉' }), repValue),
       el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '国家' }), homeSelect),
+      el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '债务' }), debtValue),
+      bankRow,
       el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '剩余' }), leftValue),
       el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '产品' }), productSelect),
       productStats,
@@ -218,8 +231,23 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   const flash = el('div', { class: 'flash' })
   const banner = el('div', { class: 'banner' })
   const pausedTag = el('div', { class: 'paused-tag', text: '已暂停' })
+  const endTitle = el('h2', { class: 'end-title' })
+  const endBody = el('div', { class: 'end-body' })
+  const endOverlay = el('div', { class: 'end-overlay' }, el('div', { class: 'end-card' }, endTitle, endBody))
 
-  root.append(el('div', { class: 'game' }, topbar, timeline, banner, el('main', { class: 'body' }, sidebar, feed), flash, pausedTag))
+  root.append(
+    el(
+      'div',
+      { class: 'game' },
+      topbar,
+      timeline,
+      banner,
+      el('main', { class: 'body' }, sidebar, feed),
+      flash,
+      pausedTag,
+      endOverlay,
+    ),
+  )
 
   // ── 交互 ─────────────────────────────────────────────────
 
@@ -323,6 +351,26 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     adoptBtn.disabled = state.contract !== null
     adoptNote.textContent = `${a.design.name} · ${designYear(a.design)} 年`
   }
+
+  borrowBtn.addEventListener('click', () => {
+    const r = borrow(state, LOAN_STEP)
+    if (!r.ok) {
+      showFlash({ d: state.day, k: 'note', t: r.msg })
+      return
+    }
+    render()
+    save()
+  })
+
+  repayBtn.addEventListener('click', () => {
+    const r = repay(state, LOAN_STEP)
+    if (!r.ok) {
+      showFlash({ d: state.day, k: 'note', t: r.msg })
+      return
+    }
+    render()
+    save()
+  })
 
   homeSelect.addEventListener('change', () => {
     if (state.day !== 0 || state.factory || state.contract) {
@@ -698,6 +746,44 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
 
   // ── 渲染：主循环 ─────────────────────────────────────────
 
+  function renderEnd(): void {
+    if (!state.over) {
+      endOverlay.classList.remove('show')
+      return
+    }
+    const s = state.stats
+    const bankrupt = state.day < TOTAL_DAYS - 1
+    const techs = Object.values(state.research.mastered).filter((v) => v > 0).length
+    endTitle.textContent = bankrupt ? `破产 · ${formatDate(state.day)}` : `1991 · 关厂报告（${formatDate(state.day)}）`
+    const rows: Array<[string, string, boolean?]> = [
+      ['累计回款', money(s.revenue)],
+      ['材料', money(s.material)],
+      ['工资 / 维持', money(s.wages)],
+      ['研发', money(s.research)],
+      ['贿赂', money(s.bribes)],
+      ['罚款', money(s.fines)],
+      ['利息', money(Math.round(s.interest))],
+      ['期末现金', money(state.cash)],
+      ['债务', money(Math.round(state.debt))],
+      ['净资产', money(Math.round(state.cash - state.debt)), state.cash - state.debt < 0],
+      ['完成订单', `${s.contracts} 张`],
+      ['累计出车', `${s.produced} 台`],
+      ['信誉', `${state.rep} / 100`],
+      ['已掌握科技', `${techs} 条`],
+    ]
+    endBody.replaceChildren(
+      ...rows.map(([k, v, bad]) =>
+        el(
+          'div',
+          { class: 'end-row' },
+          el('span', { class: 'end-key', text: k }),
+          el('span', { class: `end-val${bad ? ' bad' : ''}`, text: v }),
+        ),
+      ),
+    )
+    endOverlay.classList.add('show')
+  }
+
   function render(): void {
     const dateStr = formatDate(state.day)
     dateText.textContent = dateStr
@@ -710,6 +796,9 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     homeSelect.value = state.home
     homeSelect.disabled = state.day !== 0 || state.factory !== null || state.contract !== null
     homeSelect.title = homeSelect.disabled ? '开工之后不能改国籍' : '换国家会按新阵营重新招标'
+    debtValue.textContent = `${money(state.debt)} / ${money(creditLimit(state))}`
+    borrowBtn.disabled = state.over || availableCredit(state) < LOAN_STEP
+    repayBtn.disabled = state.over || state.debt <= 0 || state.cash < Math.min(LOAN_STEP, state.debt)
     leftValue.textContent = state.over ? '—' : `${num(daysLeft(state))} 天`
 
     const threat = threatAt(state.day)
@@ -736,6 +825,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     renderProduct()
     renderOrders()
     renderResearch()
+    renderEnd()
 
     if (state.log.length !== renderedLogCount) {
       renderedLogCount = state.log.length

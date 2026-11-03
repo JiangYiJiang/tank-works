@@ -8,6 +8,7 @@
 
 import { ERAS, NEWS, TOTAL_DAYS } from './calendar'
 import { auditBribes, economyDay, refreshOffers } from './contract'
+import { accrueInterest, autoBorrow } from './loan'
 import { advanceResearch } from './research'
 import { daysToNextEvent, pushLog, type GameState } from './state'
 
@@ -71,28 +72,30 @@ export function advanceDays(state: GameState, days: number): AdvanceResult {
     if (state.contract && !state.over) {
       const e = economyDay(state, d)
       if (e.contractDone) contractDone = true
-      if (e.bankrupt) {
-        state.day = d
-        return { days: d - start, eraChanged, newsCount, contractDone, researchDone, ended: true }
-      }
     }
 
     // 研发：项目按天推进，槽位维持费按天扣。
     if (!state.over) {
       const tech = advanceResearch(state, d, 1)
-      if (tech.spent > 0) state.cash -= tech.spent
+      if (tech.spent > 0) {
+        state.cash -= tech.spent
+        state.stats.research += tech.spent
+      }
       if (tech.completed > 0) researchDone = true
     }
+
+    // 贷款利息每天滚进本金。
+    if (!state.over) accrueInterest(state, 1)
 
     // 年度审计：有贿赂账才会真的掷骰子。
     if (!state.over) auditBribes(state, d)
 
-    // 现金见底：不管是因为工资、材料还是研发费，都算破产。
-    if (!state.over && state.cash < 0) {
+    // 现金见底：先自动透支；授信也不够才破产。
+    if (!state.over && state.cash < 0 && !autoBorrow(state)) {
       state.over = true
       const line = state.factory?.lines[0]
       if (line && line.state === 'running') line.state = 'idle'
-      pushLog(state, { d, k: 'note', t: '现金见底：工资 / 研发费发不出来，厂子破产了。' })
+      pushLog(state, { d, k: 'note', t: '现金见底，银行也不肯再借：厂子破产了。' })
       state.day = d
       return { days: d - start, eraChanged, newsCount, contractDone, researchDone, ended: true }
     }

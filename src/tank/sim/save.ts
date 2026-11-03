@@ -18,6 +18,7 @@ import {
   LOG_CAP,
   STATE_VERSION,
   createResearch,
+  createStats,
   starterDesign,
   type ActiveContract,
   type GameState,
@@ -26,6 +27,7 @@ import {
   type Offer,
   type ResearchProject,
   type ResearchState,
+  type Stats,
 } from './state'
 import type { FactoryState, LineState, ProductionLine, PurchaseOrder } from './factory'
 import type { ArmorMaterialId, TankDesign } from '../types'
@@ -48,6 +50,8 @@ export interface SaveFile {
   rep: number
   bribes: number
   home: string
+  debt: number
+  stats: Stats
 }
 
 export function toSaveFile(s: GameState): SaveFile {
@@ -66,6 +70,8 @@ export function toSaveFile(s: GameState): SaveFile {
     rep: s.rep,
     bribes: s.bribes,
     home: s.home,
+    debt: Math.round(s.debt),
+    stats: s.stats,
   }
 }
 
@@ -305,6 +311,15 @@ function coerceResearch(raw: unknown): ResearchState {
   return { mastered, projects, upgrades }
 }
 
+function coerceStats(raw: unknown): Stats {
+  const base = createStats()
+  const o = obj(raw)
+  if (!o) return base
+  const keys = Object.keys(base) as Array<keyof Stats>
+  for (const key of keys) base[key] = Math.round(clamp(o[key], 0, 1e15, 0))
+  return base
+}
+
 /**
  * 读档。看不懂就返回 null —— 宁可开新局，也不要把半个存档喂给引擎。
  */
@@ -363,5 +378,7 @@ export function decodeSave(raw: string | null | undefined): GameState | null {
     rep: Math.round(clamp(o.rep, 0, 100, 50)),
     bribes: Math.round(clamp(o.bribes, 0, 999, 0)),
     home: typeof o.home === 'string' && NATION_BY_ID.has(o.home as never) ? o.home : 'fra',
+    debt: Math.max(0, clamp(o.debt, 0, 1e15, 0)),
+    stats: coerceStats(o.stats),
   }
 }

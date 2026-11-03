@@ -257,6 +257,7 @@ export function acceptOffer(state: GameState, offerId: string, mode: BidMode = '
   if (mode === 'bribe') {
     state.cash -= offer.bribeCost
     state.bribes++
+    state.stats.bribes += offer.bribeCost
     pushLog(state, {
       d: state.day,
       k: 'order',
@@ -322,6 +323,7 @@ export function auditBribes(state: GameState, day: number): boolean {
   }
   const fine = Math.min(500_000, Math.max(0, Math.round(state.cash * 0.1)))
   state.cash -= fine
+  state.stats.fines += fine
   state.rep = clampRep(state.rep - 15)
   pushLog(state, {
     d: day,
@@ -339,6 +341,7 @@ function buyImmediate(state: GameState, line: ProductionLine, units: number): nu
   f.stock[line.spec.material] = stockOf(f, line.spec.material) + kg
   f.materialSpend += cost
   state.cash -= cost
+  state.stats.material += cost
   return cost
 }
 
@@ -359,7 +362,10 @@ function ensureStock(state: GameState, line: ProductionLine, day: number): void 
   // 留一半现金发工资
   if (price > state.cash * 0.5) return
   const r = orderMaterial(f, line.spec.material, kg, line.spec.yuanPerKg, day)
-  if (r.ok) state.cash -= r.cost
+  if (r.ok) {
+    state.cash -= r.cost
+    state.stats.material += r.cost
+  }
 }
 
 /**
@@ -386,6 +392,8 @@ export function economyDay(state: GameState, day: number): EconomyTick {
   state.cash -= tick.spent
   out.spent = tick.spent
   out.produced = tick.produced
+  state.stats.wages += tick.spent
+  state.stats.produced += tick.produced
 
   const remaining = c.qty - c.delivered
   const n = Math.min(f.finished, remaining)
@@ -399,6 +407,7 @@ export function economyDay(state: GameState, day: number): EconomyTick {
     c.paid += income
     out.delivered = n
     out.income = income
+    state.stats.revenue += income
     if (late && !c.late) {
       c.late = true
       pushLog(state, {
@@ -416,17 +425,11 @@ export function economyDay(state: GameState, day: number): EconomyTick {
       t: `订单完成：${c.nation} ${c.qty} 台，${c.late ? '逾期结算' : '按期交付'}。`,
     })
     state.rep = clampRep(state.rep + (c.late ? -5 : 2))
+    state.stats.contracts++
     state.contract = null
     if (line.state === 'running') line.state = 'idle'
     out.contractDone = true
     refreshOffers(state, true, day)
-  }
-
-  if (state.cash < 0) {
-    state.over = true
-    out.bankrupt = true
-    if (line.state === 'running') line.state = 'idle'
-    pushLog(state, { d: day, k: 'note', t: '现金见底：工资发不出来，厂子破产了。' })
   }
 
   return out

@@ -10,6 +10,7 @@
  * v4 再加研发：已掌握的技术世代、在研项目、买过的槽位/速度升级。
  * v5 再加信誉与贿赂账，招标自带竞品报价。
  * v6 再加玩家国家，客户按阵营限制。
+ * v7 再加贷款余额与累计账（关厂报告）。
  * 这些都是玩家动作的结果，重算不出来，必须存。
  */
 
@@ -19,7 +20,7 @@ import { STARTING_TECH } from '../data/tech'
 import type { RawDims, TankDesign } from '../types'
 import type { FactoryState } from './factory'
 
-export const STATE_VERSION = 6
+export const STATE_VERSION = 7
 
 /** 日志最多留这么多条。够看，又不会让存档随游戏时间一起涨。 */
 export const LOG_CAP = 160
@@ -104,6 +105,32 @@ export interface ResearchState {
   upgrades: string[]
 }
 
+/** 一局累计账，关厂报告用。日志会截断，这些数不能截。 */
+export interface Stats {
+  /** 累计回款 */
+  revenue: number
+  /** 累计材料 */
+  material: number
+  /** 累计工资 + 维持 */
+  wages: number
+  /** 累计研发（项目 + 槽位维持） */
+  research: number
+  /** 累计贿赂 */
+  bribes: number
+  /** 累计罚款 */
+  fines: number
+  /** 累计利息 */
+  interest: number
+  /** 完成订单数 */
+  contracts: number
+  /** 累计出车 */
+  produced: number
+}
+
+export function createStats(): Stats {
+  return { revenue: 0, material: 0, wages: 0, research: 0, bribes: 0, fines: 0, interest: 0, contracts: 0, produced: 0 }
+}
+
 export interface GameState {
   version: number
   seed: number
@@ -134,6 +161,10 @@ export interface GameState {
   bribes: number
   /** 玩家工厂所在国（决定能卖给哪些阵营） */
   home: string
+  /** 银行贷款余额（正数） */
+  debt: number
+  /** 累计账 */
+  stats: Stats
 }
 
 /** 开局掌握的技术：每条梯子取开局里最高的那一代。 */
@@ -173,6 +204,8 @@ export function createGame(seed: number): GameState {
     rep: 50,
     bribes: 0,
     home: 'fra',
+    debt: 0,
+    stats: createStats(),
   }
   pushLog(state, { d: 0, k: 'note', t: `开工。${ERAS[state.era]!.blurb}` })
   pushLog(state, { d: 0, k: 'note', t: '厂里只有一条产线、一份刚开张的名声 —— 先看订单。' })
