@@ -1125,7 +1125,7 @@ M1 与制造局原模型的差异：
 
 **M1 简化（已替换）**：空档期不计维持费；换型即时且免费；只有一条线。竞品、压价、贿赂、信誉、贷款、结算总表都已经接上（§9.8 / §9.9）。
 
-**验证**：`npm run economy` → 95 项；`npm run smoke:game` → 94 项。
+**验证**：`npm run economy` → 96 项；`npm run smoke:game` → 99 项。
 
 ### 8.9 设计局 → 主循环（M2）
 
@@ -1803,7 +1803,7 @@ npm install           # 首次
 npm run dev           # 开发服务器 127.0.0.1:5273，四个页面
 npm run build         # 构建到 dist/（四个入口，相对路径）
 npm run preview       # 预览打包结果
-npm run check         # 全部检查：类型 + 校准 + 节奏 + 四套冒烟 + 研发 + 指标 + 经济 + 尺度（401 项断言）
+npm run check         # 全部检查：类型 + 校准 + 节奏 + 四套冒烟 + 研发 + 指标 + 经济 + 尺度（405 项断言）
 
 npm run design        # 19 辆历史车校准表
 npm run ballistics    # 弹道两轴表
@@ -1816,7 +1816,7 @@ npm run scale         # 经济尺度：8 个时代的毛利 / 工期 / 首单技
 npm run economy       # 经济闭环验收（竞品、压价、贿赂、审计、交付、回款）
 
 npm run smoke:tank    # 设计局界面 36 项
-npm run smoke:game    # 游戏壳界面 95 项
+npm run smoke:game    # 游戏壳界面 99 项
 npm run smoke:research # 研发局界面 27 项
 npm run smoke:mf      # 制造局界面 21 项
 

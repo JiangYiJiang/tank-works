@@ -225,6 +225,12 @@ const root14 = mount(store14, 1)
 check('关厂报告自动出现', q(root14, '.end-overlay')?.classList.contains('show') === true)
 check('报告里有关厂标题', txt(root14, '.end-title').includes('关厂报告'), txt(root14, '.end-title'))
 check('报告里有净资产 / 回款', root14.textContent!.includes('净资产') && root14.textContent!.includes('累计回款'))
+check('报告有两个出口', all(root14, '.end-btn').length === 2)
+q(root14, '.end-btn')!.dispatchEvent(new win.Event('click') as unknown as Event)
+check('点「查看厂子」能关掉报告', q(root14, '.end-overlay')?.classList.contains('show') === false)
+check('关闭后顶栏能重新打开报告', (q(root14, '.chip-report') as HTMLButtonElement).hidden === false)
+q(root14, '.chip-report')!.dispatchEvent(new win.Event('click') as unknown as Event)
+check('报告能重新打开', q(root14, '.end-overlay')?.classList.contains('show') === true)
 
 // ── 2e. 多产线 / 扩编 / 料价 ─────────────────────────────
 const store15 = createMemoryStorage()

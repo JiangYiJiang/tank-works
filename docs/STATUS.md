@@ -24,7 +24,7 @@
 
 **一句话：主循环能转、科技树能推、设计能卖、标能抢、阵营能卡、钱能借、线能加、账能算；联机不做。**
 
-检查台现状：`npm run check` = 类型检查 + 12 个检查台，**401 项断言全绿**（见 §1.12）。
+检查台现状：`npm run check` = 类型检查 + 12 个检查台，**405 项断言全绿**（见 §1.12）。
 
 ---
 
@@ -122,7 +122,7 @@
 - 累计账：回款、材料、工资、研发、贿赂、罚款、利息、订单数、出车数；关厂报告直接读它
 - 产品按年代解锁（当前年份 + 2 年），换产品在下次接单时换型、熟练度 ×0.35
 
-**验证**：`npm run economy` → **96 项断言**；`npm run smoke:game` → **95 项断言**
+**验证**：`npm run economy` → **96 项断言**；`npm run smoke:game` → **99 项断言**
 
 ### 1.10 设计局 → 主循环 ✅
 
@@ -168,10 +168,10 @@
 | 经济尺度 | `npm run scale` | 33 | ✅ |
 | 经济 | `npm run economy` | 96 | ✅ |
 | 设计局界面 | `npm run smoke:tank` | 36 | ✅ |
-| 游戏壳界面 | `npm run smoke:game` | 95 | ✅ |
+| 游戏壳界面 | `npm run smoke:game` | 99 | ✅ |
 | 研发局界面 | `npm run smoke:research` | 27 | ✅ |
 | 制造局界面 | `npm run smoke:mf` | 21 | ✅ |
-| **合计** | | **401 项断言** | |
+| **合计** | | **405 项断言** | |
 
 ---
 
@@ -313,7 +313,7 @@
 npm run dev            # 四个页面，127.0.0.1:5273
 npm run build          # 类型检查 + 打包到 dist/（相对路径，可 file:// 打开）
 npm run preview        # 本地预览打包结果
-npm run check          # 401 项断言的完整回归，提交前跑这个
+npm run check          # 405 项断言的完整回归，提交前跑这个
 
 # 单个检查台
 npm run design         # 19 辆历史车校准
@@ -388,7 +388,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **M1 简化（已替换）**：空档期不烧维持费；换型即时免费；多线/贷款/信誉/竞品/贿赂/结算总表后来已接。
 
-**验证**：`npm run check` → 401 项断言；`npm run economy` → 96 项；`npm run smoke:game` → 95 项。
+**验证**：`npm run check` → 405 项断言；`npm run economy` → 96 项；`npm run smoke:game` → 99 项。
 
 ---
 
@@ -403,7 +403,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 数据修正：`ww2_simple` 年代 1944 → 1941（否则 T-34/76 会被判成超前 3 年，见 `data/parts.ts`）
 - 年代闸门：`designYear ≤ 当前年份 + 2`，同时在 `acceptOffer` 里兜底，防止绕过 UI
 
-**验证**：`npm run check` → 401 项；`smoke:tank` 36；`smoke:game` 95；`economy` 96。
+**验证**：`npm run check` → 405 项；`smoke:tank` 36；`smoke:game` 99；`economy` 96。
 
 ---
 

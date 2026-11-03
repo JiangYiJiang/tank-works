@@ -41,7 +41,7 @@
 ```bash
 npm install
 npm run dev        # http://127.0.0.1:5273/  （根路径自动跳转到 game.html）
-npm run check      # 类型检查 + 校准 + 弹道 + 科技节奏 + 时钟 + 研发 + 指标 + 尺度 + 经济 + 四套界面冒烟 = 401 项断言
+npm run check      # 类型检查 + 校准 + 弹道 + 科技节奏 + 时钟 + 研发 + 指标 + 尺度 + 经济 + 四套界面冒烟 = 405 项断言
 npm run build      # 打包到 dist/（相对路径，可直接 file:// 打开）
 ```
 

@@ -146,13 +146,15 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   )
   const pauseBtn = el('button', { class: 'chip chip-pause', text: '⏸' })
   const jumpBtn = el('button', { class: 'chip chip-jump', text: '跳到下一件事 →' })
+  const reportBtn = el('button', { class: 'chip chip-report', text: '报告' })
+  reportBtn.hidden = true
 
   const topbar = el(
     'header',
     { class: 'topbar' },
     el('div', { class: 'clock' }, dateText, eraText),
     el('div', { class: 'clock-right' }, clockMeta),
-    el('div', { class: 'speed' }, pauseBtn, ...speedButtons, jumpBtn),
+    el('div', { class: 'speed' }, pauseBtn, ...speedButtons, reportBtn, jumpBtn),
   )
 
   // 时间轴：八个时代按真实天数分宽度，游标是一条 1px 的线
@@ -260,7 +262,39 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   const pausedTag = el('div', { class: 'paused-tag', text: '已暂停' })
   const endTitle = el('h2', { class: 'end-title' })
   const endBody = el('div', { class: 'end-body' })
-  const endOverlay = el('div', { class: 'end-overlay' }, el('div', { class: 'end-card' }, endTitle, endBody))
+  const endCloseBtn = el('button', { class: 'end-btn', type: 'button', text: '查看厂子' })
+  const endRestartBtn = el('button', { class: 'end-btn end-btn-primary', type: 'button', text: '重新开一局' })
+  const endActions = el('div', { class: 'end-actions' }, endCloseBtn, endRestartBtn)
+  const endOverlay = el(
+    'div',
+    { class: 'end-overlay' },
+    el('div', { class: 'end-card' }, endTitle, endBody, endActions),
+  )
+  let endDismissed = false
+
+  endCloseBtn.addEventListener('click', () => {
+    endDismissed = true
+    endOverlay.classList.remove('show')
+  })
+  endRestartBtn.addEventListener('click', () => {
+    try {
+      storage.remove(SAVE_KEY)
+      for (const key of LEGACY_SAVE_KEYS) storage.remove(key)
+      storage.remove('tank-works.tech.v1')
+      storage.remove('tank-works.design.v1')
+    } catch {
+      /* 存储不可用也照样刷新，至少能回到新局 */
+    }
+    try {
+      location.reload()
+    } catch {
+      /* happy-dom 等环境没有 reload；测试不点这个按钮 */
+    }
+  })
+  reportBtn.addEventListener('click', () => {
+    endDismissed = false
+    renderEnd()
+  })
 
   root.append(
     el(
@@ -855,7 +889,8 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   // ── 渲染：主循环 ─────────────────────────────────────────
 
   function renderEnd(): void {
-    if (!state.over) {
+    reportBtn.hidden = !state.over
+    if (!state.over || endDismissed) {
       endOverlay.classList.remove('show')
       return
     }

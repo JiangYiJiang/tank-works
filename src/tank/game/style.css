@@ -617,6 +617,40 @@ body {
   color: var(--down);
 }
 
+.end-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.end-btn {
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel-2);
+  color: var(--dim);
+  font-family: var(--sans);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.end-btn:hover {
+  color: var(--ink);
+  border-color: var(--faint);
+}
+
+.end-btn-primary {
+  color: var(--amber);
+  border-color: #45361f;
+  background: rgba(217, 162, 78, 0.08);
+}
+
+.chip-report {
+  color: var(--amber);
+  border-color: #45361f;
+}
+
 .chip:disabled {
   opacity: 0.4;
   cursor: not-allowed;
