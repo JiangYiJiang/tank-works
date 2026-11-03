@@ -1,8 +1,8 @@
 # 坦克厂 · 游戏设计文档
 
-> 版本 `v0.5` · 最后更新 2026-11-03 · 工作区：`F:\tankfactory`
-> 状态：设计局、研发局、制造局已跑通；游说局做了 M1 最小版（三档招标 → 接单 → 排产 → 交付 → 回款），
-> 主循环第一次能转起来。仍是单产线、单客户类型，没有竞品 / 贿赂 / 阵营 / 信誉。
+> 版本 `v0.6` · 最后更新 2026-11-03 · 工作区：`F:\tankfactory`
+> 状态：设计局、研发局、制造局已跑通；游说局做了 M1 最小版（三档招标 → 接单 → 排产 → 交付 → 回款）；
+> **设计局的车可以交给主循环去卖**（M2）。仍是单产线、单客户类型，没有竞品 / 贿赂 / 阵营 / 信誉。
 >
 > 本文档只讲**设计与推导**。进度、待办、已知问题见 [STATUS.md](STATUS.md)；
 > 需求原件见 [原始需求.docx](<原始需求.docx>)。
@@ -1080,7 +1080,29 @@ M1 与制造局原模型的差异：
 
 **M1 简化（待替换）**：空档期不计维持费；换型即时且免费；只有一条线、一类客户；没有贷款、信誉、竞品、贿赂；逾期只打折，不终止合同。
 
-**验证**：`npm run economy` → 38 项；`npm run smoke:game` → 47 项。
+**验证**：`npm run economy` → 42 项；`npm run smoke:game` → 56 项。
+
+### 8.9 设计局 → 主循环（M2）
+
+两个页面是独立入口，没有共享运行时，所以用 localStorage 传一份「刚采用的设计」：
+
+- 设计局右上角「采用此设计」→ `tank-works.design.v1` = `{ at, design }`
+- 主循环「导入设计局的车」→ 读回、`buildTank()` 验算、过闸门、写进 `GameState.design`
+
+**年代闸门**：
+
+```
+designYear = max(车体 era, 炮 era, 发动机 era, 悬挂 era, 辅助 era, 材料 era)
+允许成交 ⟺ designYear ≤ 当前年份 + 2
+```
+
+`PRODUCT_LEAD_YEARS = 2` 是给「提前两年备货」留的量。闸门放在 `acceptOffer()` 里，UI 只是提前拦一次；手改存档也绕不过去。
+
+**产品身份**：换型判断按制造参数（工时、单重、材料、料价），不按名字。改型号名不算换型，改参数才掉熟练度。
+
+**数据修正**：`ww2_simple`（苏联早期电台）年代 1944 → 1941。它被 T-34/76（1941）使用，按 1944 算会把整辆车判成超前 3 年。
+
+**还没做的**：零件没有按已掌握科技过滤（P2-15），所以设计局里仍能选到 1991 年的零件；闸门只能保证「卖不出去」，不能保证「造不出来」。
 
 ---
 
@@ -1349,7 +1371,7 @@ v1 / v2 老存档可以读：产品默认 FT-17，没有产线与订单，界面
 |---|---|---|---|---|
 | 根路径 | `/` | `index.html` | 只做跳转：→ `/game.html` | ✅ 可用 |
 | 游戏壳 | `/game.html` | `src/tank/game/main.ts` | 日历、产品、招标、产线、现金 | ✅ 可玩最小闭环 |
-| 设计局 | `/tank.html` | `src/tank/main.ts` | 拼车、看四维、看代价 | ✅ 可用 |
+| 设计局 | `/tank.html` | `src/tank/main.ts` | 拼车、看四维、看代价、把车交给主循环 | ✅ 可用 |
 | 研发局 | `/research.html` | `src/tank/research-main.ts` | 科技树、超前/追赶、落后年数 | ✅ 可用 |
 | 制造局 | `/manufacture.html` | `src/tank/manufacture-main.ts` | 产线、仓库、学习曲线 | ✅ 独立试算页（主循环同一模型） |
 
@@ -1412,6 +1434,7 @@ tank-works/
 │  │  │  ├─ tuning.ts        全部魔法数（一页看完）
 │  │  │  ├─ geometry.ts  mass.ts  armor.ts  gun.ts  ballistics.ts
 │  │  │  ├─ mobility.ts  adapt.ts  score.ts  build.ts
+│  │  │  └─ era.ts           设计年代（零件最晚 era）
 │  │  ├─ sim/
 │  │  │  ├─ calendar.ts  state.ts  advance.ts  save.ts
 │  │  │  ├─ factory.ts       产线、仓库、学习曲线
@@ -1421,7 +1444,9 @@ tank-works/
 │  │  │  ├─ research.ts + research.css     研发局
 │  │  │  └─ manufacture.ts + factory.css   制造局
 │  │  └─ game/shell.ts + style.css         游戏壳
-│  └─ platform/storage.ts    SaveStore 抽象
+│  └─ platform/
+│     ├─ storage.ts          SaveStore 抽象
+│     └─ design-handoff.ts   设计局 → 主循环的 localStorage 交接
 ├─ probe/                    校准台、预算台、标定台（fit/ 子目录是标定器，不进产物）
 └─ tools/                    界面冒烟测试 + 文档表格生成
 ```
@@ -1478,6 +1503,8 @@ tank-works/
 | 22 | 换型即时、不收费（M1） | 30 天 + 15 天工资 | 先把闭环跑通；换型停机留给多产线版本 |
 | 23 | 订单价 = 同期参照车成本 ×1.3–1.4 | 真实军贸单价表 | M1 没有竞品与谈判，先让收入侧有数；经济尺度仍是开放问题 |
 | 24 | 破产 = 现金 < 0，无贷款 | 贷款 + 债务上限 | M1 只保留最硬的失败条件；P1-10 再补贷款 |
+| 25 | 设计年代按「零件最晚 era」算，成交闸门 +2 年 | 按科技树状态 | 科技树还没接进游戏；先用零件年代做一道可解释的临时闸门 |
+| 26 | 设计交接走 localStorage | URL 参数 / 共享状态 | 两个页面独立入口，localStorage 最省事；以后换 Electron 改成文件 |
 
 ---
 
@@ -1552,6 +1579,7 @@ tank-works/
 | 交期档 | 150 / 300 / 540 天 |
 | 单价倍率 | 1.30 / 1.35 / 1.40（× 同期参照车单台成本） |
 | 门槛 | 同期参照车四维 × 70%，总分 × 55% |
+| `PRODUCT_LEAD_YEARS` | 2 年（设计年代 ≤ 当前年份 + 2 才能成交） |
 | 首批备料 | 最多 60% 现金，现货 |
 | 低水位 / 补货批量 | 3 台 / 5 台（14 天到货） |
 | 逾期折扣 `LATE_PENALTY` | 0.70 |
@@ -1578,7 +1606,7 @@ npm install           # 首次
 npm run dev           # 开发服务器 127.0.0.1:5273，四个页面
 npm run build         # 构建到 dist/（四个入口，相对路径）
 npm run preview       # 预览打包结果
-npm run check         # 全部检查：类型 + 校准 + 节奏 + 四套冒烟 + 经济（192 项断言）
+npm run check         # 全部检查：类型 + 校准 + 节奏 + 四套冒烟 + 经济（210 项断言）
 
 npm run design        # 19 辆历史车校准表
 npm run ballistics    # 弹道两轴表
@@ -1587,8 +1615,8 @@ npm run factory       # 制造局标定台（7 辆车 × 36 个月）
 npm run clock         # 时钟验收
 npm run economy       # 经济闭环验收（接单 → 交付 → 回款）
 
-npm run smoke:tank    # 设计局界面 28 项
-npm run smoke:game    # 游戏壳界面 47 项
+npm run smoke:tank    # 设计局界面 33 项
+npm run smoke:game    # 游戏壳界面 56 项
 npm run smoke:research # 研发局界面 27 项
 npm run smoke:mf      # 制造局界面 21 项
 

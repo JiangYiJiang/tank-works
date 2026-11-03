@@ -11,6 +11,8 @@ import { advanceDays } from '../src/tank/sim/advance'
 import { START_CASH, createGame, type GameState } from '../src/tank/sim/state'
 import { acceptOffer, productCandidates, productMeets, refreshOffers } from '../src/tank/sim/contract'
 import { buildTank } from '../src/tank/model/build'
+import { designYear } from '../src/tank/model/era'
+import { HISTORICAL } from '../src/tank/data/historical'
 import { decodeSave, encodeSave } from '../src/tank/sim/save'
 
 let pass = 0
@@ -127,6 +129,22 @@ check('v2 存档可读', v2 !== null && v2.day === 100)
 check('v2 默认 FT-17', v2?.design.name === 'FT-17')
 check('v2 没有产线 / 订单', v2?.factory === null && v2?.contract === null)
 check('v2 读回来有标（界面会补）', v2?.offers.length === 0)
+
+// ── 12. 设计年代闸门 ──────────────────────────────────────
+const byName = (n: string): GameState['design'] => {
+  const h = HISTORICAL.find((x) => x.name.includes(n))
+  if (!h) throw new Error(`没找到 ${n}`)
+  return JSON.parse(JSON.stringify(h.design)) as GameState['design']
+}
+check('FT-17 的设计年代是 1917', designYear(byName('FT-17')) === 1917, String(designYear(byName('FT-17'))))
+check('T-34/76 的设计年代是 1941', designYear(byName('T-34/76')) === 1941, String(designYear(byName('T-34/76'))))
+check('虎王的设计年代是 1944', designYear(byName('虎王')) === 1944, String(designYear(byName('虎王'))))
+
+const future = createGame(53)
+refreshOffers(future)
+future.design = byName('虎王')
+const futureRes = acceptOffer(future, future.offers[0]!.id)
+check('1915 年接不了 1944 年的车', !futureRes.ok && futureRes.msg.includes('年才成熟'), futureRes.msg)
 
 console.log(`\n${pass} 通过 / ${fail} 失败\n`)
 if (fail > 0) process.exitCode = 1

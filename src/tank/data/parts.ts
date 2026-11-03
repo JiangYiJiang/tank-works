@@ -143,7 +143,8 @@ export const AUXES: readonly AuxDef[] = [
   { id: 'interwar', name: '基本电台 + 光学瞄准', night: 'none', fcs: 'optical', stabilizer: false, nbc: 0, radio: 2, era: 1935 },
   { id: 'ww2_std', name: '电台 + 光学瞄准', night: 'none', fcs: 'optical', stabilizer: false, nbc: 0, radio: 2, era: 1941 },
   { id: 'ww2_rf', name: '电台 + 体视测距', night: 'none', fcs: 'rangefinder', stabilizer: false, nbc: 0, radio: 2, era: 1943 },
-  { id: 'ww2_simple', name: '有限电台（苏联早期）', night: 'none', fcs: 'none', stabilizer: false, nbc: 0, radio: 1, era: 1944 },
+  // 年代按「T-34/76 就用得上」算：1941。原先写 1944，会把 1941 年的车判成超前。
+  { id: 'ww2_simple', name: '有限电台（苏联早期）', night: 'none', fcs: 'none', stabilizer: false, nbc: 0, radio: 1, era: 1941 },
   { id: 'early_cold', name: '全员电台 + 光学测距', night: 'none', fcs: 'rangefinder', stabilizer: false, nbc: 1, radio: 3, era: 1950 },
   { id: 'cold_ir', name: '全员电台 + 测距 + 红外夜视', night: 'ir', fcs: 'rangefinder', stabilizer: false, nbc: 2, radio: 3, era: 1958 },
   { id: 'cold_stab', name: '激光测距 + 双向稳定', night: 'ir', fcs: 'laser', stabilizer: true, nbc: 2, radio: 3, era: 1965 },

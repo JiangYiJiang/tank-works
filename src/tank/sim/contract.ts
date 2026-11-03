@@ -13,6 +13,7 @@
  */
 
 import { buildTank } from '../model/build'
+import { designYear } from '../model/era'
 import { HISTORICAL } from '../data/historical'
 import { TOTAL_DAYS, dateOf, formatDate } from './calendar'
 import {
@@ -24,6 +25,7 @@ import {
   orderMaterial,
   specOf,
   stockOf,
+  type LineSpec,
   type ProductionLine,
 } from './factory'
 import { pushLog, type GameState, type Offer } from './state'
@@ -144,6 +146,16 @@ export function refreshOffers(state: GameState, force = false, day = state.day):
   }))
 }
 
+/** 两份制造参数是不是同一辆车（名字不算，参数才算）。 */
+function sameSpec(a: LineSpec, b: LineSpec): boolean {
+  return (
+    a.baseHours === b.baseHours &&
+    a.unitKg === b.unitKg &&
+    a.material === b.material &&
+    Math.abs(a.yuanPerKg - b.yuanPerKg) < 1e-6
+  )
+}
+
 /**
  * 接单。
  * 只有四维与总分都达标才能接 —— 这是「偏科的代价」唯一的入口，评分本身不扣分。
@@ -156,6 +168,10 @@ export function acceptOffer(state: GameState, offerId: string): AcceptResult {
   if (offer.deadline <= state.day) return { ok: false, msg: '这份标已经过期了' }
 
   const tank = buildTank(state.design)
+  const limitYear = dateOf(state.day).year + PRODUCT_LEAD_YEARS
+  if (designYear(state.design) > limitYear) {
+    return { ok: false, msg: `这辆车的零件 ${designYear(state.design)} 年才成熟，${limitYear} 年前客户不会要` }
+  }
   if (!productMeets(tank, offer)) return { ok: false, msg: '四维或总分不达标，客户不会签' }
 
   const spec = specOf(tank)
@@ -166,7 +182,7 @@ export function acceptOffer(state: GameState, offerId: string): AcceptResult {
   let line = state.factory.lines[0]
   if (!line) {
     line = addLine(state.factory, spec, START_WORKERS, START_SHIFTS)
-  } else if (line.spec.tank !== spec.tank) {
+  } else if (!sameSpec(line.spec, spec)) {
     line.spec = spec
     line.built = Math.floor(line.built * RETOOL_KEEP)
     line.progress = 0
@@ -177,6 +193,9 @@ export function acceptOffer(state: GameState, offerId: string): AcceptResult {
       k: 'build',
       t: `换型到 ${spec.tank}：熟练度按 ${Math.round(RETOOL_KEEP * 100)}% 保留（M1 不收换型费、不占停机）。`,
     })
+  } else if (line.spec.tank !== spec.tank) {
+    // 只改了名字、参数没动：不算换型，只更新标签。
+    line.spec.tank = spec.tank
   }
   line.state = 'running'
   state.contract = { ...offer, delivered: 0, acceptedDay: state.day, late: false, paid: 0 }

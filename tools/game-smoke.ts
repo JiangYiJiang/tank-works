@@ -22,6 +22,7 @@ Object.assign(globalThis, {
 
 const { mountGame } = await import('../src/tank/game/shell')
 const { createMemoryStorage } = await import('../src/platform/storage')
+const { HISTORICAL } = await import('../src/tank/data/historical')
 
 let pass = 0
 let fail = 0
@@ -150,6 +151,40 @@ check('v2 存档能恢复日期', txt(root5, '.date') === '1916年9月15日', tx
 check('v2 存档现金照旧', cashOf(root5) === 500_000, txt(root5, '.cash-value'))
 check('v2 存档默认产品 FT-17', (q(root5, '.sel') as HTMLSelectElement).value === 'FT-17')
 check('v2 存档读回来有招标', all(root5, '.offer').length === 3, `实际 ${all(root5, '.offer').length}`)
+
+// ── 5. 设计局 → 主循环：导入本厂设计 ─────────────────────
+const ft = HISTORICAL.find((h) => h.name.includes('FT-17'))!
+const custom = JSON.parse(JSON.stringify(ft.design)) as typeof ft.design
+custom.name = 'FT-17 改'
+custom.armor.front = 18
+win.localStorage.setItem('tank-works.design.v1', JSON.stringify({ at: Date.now(), design: custom }))
+
+const store6 = createMemoryStorage()
+const root6 = mount(store6, 7)
+check(
+  '产品面板出现设计局的车',
+  q(root6, '.adopt-row')?.classList.contains('show') === true && root6.textContent!.includes('FT-17 改'),
+  txt(root6, '.adopt-note'),
+)
+const adoptBtn6 = q(root6, '.chip-adopt') as HTMLButtonElement
+adoptBtn6.dispatchEvent(new win.Event('click') as unknown as Event)
+const sel6 = q(root6, '.sel') as HTMLSelectElement
+const selectedText6 = (): string => sel6.options[sel6.selectedIndex]?.textContent ?? ''
+check('导入后产品变成 FT-17 改', selectedText6().includes('FT-17 改'), selectedText6())
+check('导入后下拉有本厂选项', root6.textContent!.includes('本厂 · FT-17 改'))
+check('导入写进日志', root6.textContent!.includes('导入本厂设计'))
+const raw6 = store6.read('tank-works.save.v3')
+check('导入的设计进了存档', raw6 ? JSON.parse(raw6).design.name === 'FT-17 改' : false)
+check('导入后仍可接单', (q(root6, '.chip-accept') as HTMLButtonElement).disabled === false)
+
+// 超前设计：1915 年不能卖 1944 年的车
+const tiger = HISTORICAL.find((h) => h.name.includes('虎王'))!
+win.localStorage.setItem('tank-works.design.v1', JSON.stringify({ at: Date.now(), design: tiger.design }))
+;(win as unknown as { dispatchEvent: (e: unknown) => boolean }).dispatchEvent(new win.Event('focus'))
+check('焦点回来后刷新了接车行', txt(root6, '.adopt-note').includes('Tiger II'), txt(root6, '.adopt-note'))
+adoptBtn6.dispatchEvent(new win.Event('click') as unknown as Event)
+check('超前设计被拒绝', selectedText6().includes('FT-17 改'), selectedText6())
+check('拒绝时说明了年代', txt(root6, '.flash-text').includes('客户不会要'), txt(root6, '.flash-text'))
 
 console.log(`\n${pass} 通过 / ${fail} 失败\n`)
 // rAF 循环会真的挂住事件循环，测完必须硬退

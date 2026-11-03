@@ -142,6 +142,24 @@ if (ammoSel) {
   check('找得到弹药下拉', false)
 }
 
+// ── 采用此设计 → 主循环 ───────────────────────────────────
+const adoptBtn = root.querySelector('.adopt-btn') as HTMLButtonElement | null
+check('有「采用此设计」按钮', adoptBtn !== null)
+const nameInput = root.querySelector('.txt') as HTMLInputElement | null
+check('有型号名输入框', nameInput !== null, nameInput?.value)
+if (adoptBtn && nameInput) {
+  const baseName = nameInput.value
+  nameInput.value = `${baseName} 改`
+  nameInput.dispatchEvent(new win.Event('input') as unknown as Event)
+  adoptBtn.dispatchEvent(new win.Event('click') as unknown as Event)
+
+  const raw = win.localStorage.getItem('tank-works.design.v1')
+  const payload = raw ? (JSON.parse(raw) as { at?: number; design?: { name?: string; hull?: string } }) : null
+  check('采用后写入了本地交接', typeof payload?.at === 'number' && payload?.design?.name === `${baseName} 改`, raw ?? '')
+  check('交接里带完整设计', typeof payload?.design?.hull === 'string')
+  check('采用后界面给出回执', (root.querySelector('.adopt-note')?.textContent ?? '').includes('已采用'))
+}
+
 // 存档往返无关，但 URL 参数要能用
 check('文字里没有英文报错', !/Error|Cannot read/.test(text()))
 

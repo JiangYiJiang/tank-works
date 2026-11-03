@@ -34,6 +34,7 @@ export type {
 } from './types'
 
 export { buildTank } from './model/build'
+export { designYear } from './model/era'
 export { dim, scoreDims, REF, WEIGHT } from './model/score'
 export { solveGeometry } from './model/geometry'
 export { solveMass } from './model/mass'

@@ -508,6 +508,34 @@ body {
   color: var(--green);
 }
 
+.adopt-row {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.adopt-row.show {
+  display: flex;
+}
+
+.chip-adopt {
+  padding: 4px 8px;
+  color: var(--cyan);
+  border-color: #1f3a40;
+  font-size: 11px;
+}
+
+.adopt-note {
+  color: var(--faint);
+  font-size: 10.5px;
+  line-height: 1.4;
+  text-align: right;
+}
+
 /* ── 提示层 ───────────────────────────────────────────── */
 
 .banner,

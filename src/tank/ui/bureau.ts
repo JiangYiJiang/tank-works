@@ -26,6 +26,8 @@ import { buildTank } from '../model/build'
 import { solveGeometry } from '../model/geometry'
 import { muzzleVelocity } from '../model/gun'
 import { penetrationAt, losPenetrated, plateDefeated } from '../model/ballistics'
+import { designYear } from '../model/era'
+import { writeAdopted } from '../../platform/design-handoff'
 import type { ArmorMaterialId, ShellType, Tank, TankDesign } from '../types'
 
 /**
@@ -227,6 +229,19 @@ export function mountBureau(root: HTMLElement): void {
   })
   presetSel.value = design.name
   slots.append(el('label', { class: 'row' }, presetSel))
+
+  // 型号名：样车带一个默认名，玩家可以改成自己的型号。
+  const nameInput = el('input', { class: 'txt', maxlength: '24', value: design.name }) as HTMLInputElement
+  nameInput.addEventListener('input', () => {
+    design.name = nameInput.value.trim().slice(0, 24) || '未命名'
+    update()
+  })
+  add({
+    node: el('label', { class: 'row' }, el('span', { class: 'row-label', text: '型号名' }), nameInput),
+    sync: () => {
+      nameInput.value = design.name
+    },
+  })
 
   group('车体')
   add(
@@ -520,6 +535,22 @@ export function mountBureau(root: HTMLElement): void {
 
   // ── 装配 ──────────────────────────────────────────────────
 
+  const adoptNote = el('span', { class: 'adopt-note' })
+  const adoptBtn = el('button', { class: 'adopt-btn', type: 'button' }, '采用此设计 →')
+  adoptBtn.addEventListener('click', () => {
+    if (!design.name.trim()) {
+      design.name = '未命名'
+      nameInput.value = design.name
+      update()
+    }
+    const ok = writeAdopted(design)
+    const year = designYear(design)
+    adoptNote.textContent = ok
+      ? `已采用「${design.name}」· ${year} 年 · 回主循环点「导入设计局的车」`
+      : '这个浏览器不允许写本地存储'
+    adoptNote.classList.toggle('bad', !ok)
+  })
+
   const header = el(
     'header',
     { class: 'topbar' },
@@ -531,7 +562,13 @@ export function mountBureau(root: HTMLElement): void {
     ),
     el(
       'div',
-      { class: 'hint', text: '提示：先把首上倾角拉到 60°，再把厚度翻倍 —— 看看吨位和工时谁涨得快。' },
+      { class: 'top-side' },
+      el('div', { class: 'top-actions' }, adoptBtn, el('a', { class: 'adopt-link', href: './game.html' }, '去主循环 →')),
+      adoptNote,
+      el(
+        'p',
+        { class: 'hint', text: '提示：先把首上倾角拉到 60°，再把厚度翻倍 —— 看看吨位和工时谁涨得快。' },
+      ),
     ),
   )
 

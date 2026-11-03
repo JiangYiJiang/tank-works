@@ -9,13 +9,15 @@
  *   2. 日志只在长度变了时重建
  */
 
-import { ERAS, TOTAL_DAYS, formatDate, formatMonth, threatAt } from '../sim/calendar'
+import { ERAS, TOTAL_DAYS, dateOf, formatDate, formatMonth, threatAt } from '../sim/calendar'
 import { advanceDays, skipToNextEvent } from '../sim/advance'
 import { createGame, daysLeft, progress, pushLog, type GameState, type LogEntry } from '../sim/state'
 import { decodeSave, encodeSave } from '../sim/save'
-import { acceptOffer, needText, productCandidates, productMeets, refreshOffers } from '../sim/contract'
+import { PRODUCT_LEAD_YEARS, acceptOffer, needText, productCandidates, productMeets, refreshOffers } from '../sim/contract'
 import { buildTank } from '../model/build'
+import { designYear } from '../model/era'
 import { daysPerUnit, inTransitKg, stockOf } from '../sim/factory'
+import { readAdopted } from '../../platform/design-handoff'
 import type { SaveStore } from '../../platform/storage'
 
 const SAVE_KEY = 'tank-works.save.v3'
@@ -88,6 +90,8 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   let renderedLogCount = -1
   let offerSig = ''
   let candidateSig = ''
+  /** 产品下拉里是否挂着「本厂设计」那个选项 */
+  let hasCustom = false
   let flashUntil = 0
   let savedAtDay = state.day
 
@@ -127,6 +131,10 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   const productSelect = el('select', { class: 'sel' })
   const productStats = el('div', { class: 'mini-grid' })
   const productHint = el('p', { class: 'hintline' })
+  const adoptBtn = el('button', { class: 'chip chip-adopt', type: 'button' }, '导入设计局的车')
+  const adoptNote = el('span', { class: 'adopt-note' })
+  const adoptRow = el('div', { class: 'adopt-row' }, adoptBtn, adoptNote)
+  adoptBtn.addEventListener('click', importAdopted)
 
   const offersWrap = el('div', { class: 'offers' })
   const contractWrap = el('div', { class: 'contract' })
@@ -148,6 +156,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '产品' }), productSelect),
       productStats,
       productHint,
+      adoptRow,
     ),
     el('section', { class: 'panel' }, el('h2', { text: '订单' }), offersWrap, contractWrap),
     el(
@@ -220,12 +229,60 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     save()
   }
 
+  function importAdopted(): void {
+    if (state.contract) {
+      showFlash({ d: state.day, k: 'note', t: '订单执行中，交完再换产品。' })
+      return
+    }
+    const a = readAdopted()
+    if (!a) {
+      showFlash({ d: state.day, k: 'note', t: '设计局里还没有采用的车：去 /tank.html 点「采用此设计」。' })
+      return
+    }
+    try {
+      buildTank(a.design)
+    } catch {
+      showFlash({ d: state.day, k: 'note', t: '这份设计的数据不完整，去设计局重新采用一次。' })
+      return
+    }
+    const year = designYear(a.design)
+    const limit = dateOf(state.day).year + PRODUCT_LEAD_YEARS
+    if (year > limit) {
+      showFlash({
+        d: state.day,
+        k: 'note',
+        t: `${a.design.name} 的零件 ${year} 年才成熟，${limit} 年前客户不会要。`,
+      })
+      return
+    }
+    state.design = JSON.parse(JSON.stringify(a.design)) as typeof state.design
+    pushLog(state, { d: state.day, k: 'note', t: `导入本厂设计：${a.design.name}（${year} 年）。` })
+    candidateSig = ''
+    offerSig = ''
+    dirty = true
+    render()
+    save()
+  }
+
+  function refreshAdopt(): void {
+    const a = readAdopted()
+    if (!a) {
+      adoptRow.classList.remove('show')
+      return
+    }
+    adoptRow.classList.add('show')
+    adoptBtn.disabled = state.contract !== null
+    adoptNote.textContent = `${a.design.name} · ${designYear(a.design)} 年`
+  }
+
   productSelect.addEventListener('change', () => {
     if (state.contract) return
+    if (productSelect.value === '__custom__') return
     const h = productCandidates(state.day).find((c) => c.design.name === productSelect.value)
     if (!h) return
     state.design = JSON.parse(JSON.stringify(h.design)) as typeof state.design
     pushLog(state, { d: state.day, k: 'note', t: `改用 ${h.name}（${h.year}）。` })
+    candidateSig = ''
     offerSig = ''
     dirty = true
     render()
@@ -248,6 +305,11 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     else if (e.key === '3') setSpeed(10)
     else if (e.key === '4') setSpeed(30)
     else if (e.key === 'ArrowRight') doJump()
+  })
+  // 从设计局切回来时，刷新「导入设计局的车」那一行。
+  window.addEventListener('focus', () => {
+    refreshAdopt()
+    dirty = true
   })
   ;(root as unknown as HTMLElement & { tabIndex: number }).tabIndex = 0
 
@@ -283,15 +345,29 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     const sig = candidates.map((c) => c.design.name).join('|')
     if (sig !== candidateSig) {
       candidateSig = sig
+      hasCustom = false
       productSelect.replaceChildren()
       for (const c of candidates) {
         productSelect.append(el('option', { value: c.design.name, text: `${c.year} · ${c.name}` }))
       }
-      if (!candidates.some((c) => c.design.name === state.design.name)) {
-        productSelect.append(el('option', { value: state.design.name, text: state.design.name }))
-      }
     }
-    productSelect.value = state.design.name
+    // 和历史样车逐字段比对：完全一样才显示成历史车，否则挂「本厂设计」。
+    const exact = candidates.find((c) => fingerprint(c.design) === fingerprint(state.design))
+    if (exact) {
+      if (hasCustom) {
+        ;[...productSelect.options].find((o) => o.value === '__custom__')?.remove()
+        hasCustom = false
+      }
+    } else {
+      let opt = [...productSelect.options].find((o) => o.value === '__custom__') as HTMLOptionElement | undefined
+      if (!opt) {
+        opt = el('option', { value: '__custom__' })
+        productSelect.append(opt)
+        hasCustom = true
+      }
+      opt.textContent = `本厂 · ${state.design.name}`
+    }
+    productSelect.value = exact ? state.design.name : '__custom__'
     productSelect.disabled = state.contract !== null
 
     const tank = buildTank(state.design)
@@ -306,6 +382,32 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     productHint.textContent = state.contract
       ? '订单执行中，交完才能换产品。'
       : '换产品在下次接单时生效：熟练度只保留 35%。'
+    refreshAdopt()
+  }
+
+  function designKey(): string {
+    return fingerprint(state.design)
+  }
+
+  function fingerprint(d: typeof state.design): string {
+    const a = d.armor
+    return [
+      d.name,
+      d.hull,
+      d.gun,
+      d.engine,
+      d.suspension,
+      d.aux,
+      a.material,
+      a.turretMaterial ?? '',
+      a.front,
+      a.frontSlope,
+      a.side,
+      a.turretFront,
+      a.turretSlope,
+      a.pike ? 1 : 0,
+      d.mods ? JSON.stringify(d.mods) : '',
+    ].join('|')
   }
 
   function renderOrders(): void {
@@ -313,7 +415,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     const line = state.factory?.lines[0]
     const sig = c
       ? `c|${c.id}|${c.delivered}|${c.paid}|${c.late}|${state.day}|${line?.state ?? ''}|${line?.starved ?? 0}`
-      : `o|${state.offers.map((o) => o.id).join(',')}|${state.design.name}`
+      : `o|${state.offers.map((o) => o.id).join(',')}|${designKey()}`
     if (sig === offerSig) return
     offerSig = sig
     offersWrap.replaceChildren()
