@@ -163,6 +163,7 @@ function coerceLine(raw: unknown): ProductionLine | null {
       unitKg: clamp(s.unitKg, 1, 1e6, 1),
       material: s.material as ArmorMaterialId,
       yuanPerKg: clamp(s.yuanPerKg, 0, 1e6, 0),
+      upkeepMult: clamp(s.upkeepMult, 0.5, 1.5, 1),
     },
     built: Math.round(clamp(l.built, 0, 1e6, 0)),
     progress: clamp(l.progress, 0, 1e9, 0),

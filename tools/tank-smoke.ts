@@ -116,6 +116,7 @@ check('被帽弹在 60° 上比 0° 钻得更深的视线厚度', text().include
 check('自检结论：虎王 2km 打不穿自己首上', text().includes('打不穿'))
 check('物理量有装填 / 倒车 / 俯仰', text().includes('装填') && text().includes('倒车速度') && text().includes('俯仰角'))
 check('物理量有抗破', text().includes('首上抗破') && text().includes('炮塔抗破'))
+check('物理量有主动防御', text().includes('主动防御'))
 
 // 换成破甲弹：不吃角度，2km 不衰减
 const ammoSel = [...root.querySelectorAll('select')].find((s) =>

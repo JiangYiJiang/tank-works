@@ -186,6 +186,8 @@ export interface AuxDef {
   nbc: number
   /** 电台品质 0-3 */
   radio: number
+  /** 主动防御系统（拦截破甲弹） */
+  aps?: boolean
   era: number
 }
 
@@ -296,6 +298,8 @@ export interface TankPhysical {
   vReverse: number
   /** 火炮俯仰角（负值，度） */
   depression: number
+  /** 有没有主动防御 */
+  aps: boolean
 }
 
 /** 成本。用户要求「材料费 + 工时费」两条线，所以分开报。 */

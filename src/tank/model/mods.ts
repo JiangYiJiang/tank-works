@@ -18,6 +18,10 @@ export interface TechMods {
   rangeKeep?: Partial<Record<ShellType, number>>
   /** 破甲弹的「口径倍数」；未列出的用 TUNING 默认 */
   heatPerCaliber?: number
+  /** 弹芯密度（g/cm³），只影响长杆/脱壳弹的穿深质量 */
+  density?: number
+  /** 炮管寿命倍率，越高越省维护费 */
+  barrelLife?: number
 }
 
 export const NO_TECH: TechMods = { labor: 1, charge: 1 }

@@ -431,6 +431,7 @@ export function mountBureau(root: HTMLElement): void {
     { k: 'pen', label: '穿深 500m', unit: 'mm' },
     { k: 'reloadSec', label: '装填', unit: 's' },
     { k: 'depression', label: '俯仰角', unit: '°' },
+    { k: 'aps', label: '主动防御', unit: '' },
     { k: 'rounds', label: '备弹', unit: '发' },
   ]
   const physValues = new Map<string, HTMLElement>()
@@ -675,6 +676,7 @@ export function mountBureau(root: HTMLElement): void {
     set('pen', nf(p.pen))
     set('reloadSec', p.reloadSec.toFixed(1))
     set('depression', `-${p.depression.toFixed(1)}`)
+    set('aps', p.aps ? '有' : '无')
     set('rounds', nf(p.rounds))
 
     // ── 弹道两轴 ──

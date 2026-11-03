@@ -27,6 +27,7 @@ console.log('\n设计局缺失指标 · 验收\n')
 const ft = HISTORICAL.find((h) => h.name.includes('FT-17'))!
 const t34 = HISTORICAL.find((h) => h.name.includes('T-34'))!
 const tiger = HISTORICAL.find((h) => h.name.includes('虎王'))!
+const m1 = HISTORICAL.find((h) => h.name.includes('M1A1'))!
 const pFt = buildTank(ft.design).physical
 const pT34 = buildTank(t34.design).physical
 const pTiger = buildTank(tiger.design).physical
@@ -56,6 +57,13 @@ mr.mastered['ammo.heat'] = 2
 const heatTuned = buildTank(heatDesign, techMods(mr)).physical
 check('早期破甲弹 ≈ 1 倍口径', Math.abs(heatBase.pen - 37) < 3, String(heatBase.pen))
 check('精密装药把破甲弹推到 1.8 倍口径', heatTuned.pen > heatBase.pen * 1.6, `${heatTuned.pen} vs ${heatBase.pen}`)
+
+// ── 主动防御 ──────────────────────────────────────────────
+const m1Base = buildTank(m1.design).physical
+const apsDesign = { ...JSON.parse(JSON.stringify(m1.design)), aux: 'aps_drozd' }
+const m1Aps = buildTank(apsDesign).physical
+check('主动防御装上了', m1Aps.aps === true && m1Base.aps === false)
+check('主动防御加 400mm 抗破', m1Aps.armorFrontCe > m1Base.armorFrontCe + 350, `${m1Aps.armorFrontCe} vs ${m1Base.armorFrontCe}`)
 
 console.log(`\n${pass} 通过 / ${fail} 失败\n`)
 if (fail > 0) process.exitCode = 1

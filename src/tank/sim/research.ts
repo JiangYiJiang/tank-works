@@ -359,6 +359,8 @@ export function techMods(r: ResearchState): TechMods {
     slopeExp,
     rangeKeep,
     heatPerCaliber: latestFn(r, 'ammo.heat', 'heatPerCaliber'),
+    density: latestFn(r, 'ammo.apfsds', 'density') ?? latestFn(r, 'ammo.pen', 'density'),
+    barrelLife: latestFn(r, 'ammo.prop', 'barrelLife'),
   }
 }
 

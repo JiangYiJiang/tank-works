@@ -151,6 +151,7 @@ export const AUXES: readonly AuxDef[] = [
   { id: 'cold_late', name: '激光测距 + 稳定 + 微光', night: 'ir', fcs: 'laser', stabilizer: true, nbc: 3, radio: 3, era: 1975 },
   { id: 'thermal', name: '数字火控 + 稳定 + 热成像', night: 'thermal1', fcs: 'digital', stabilizer: true, nbc: 3, radio: 3, era: 1985 },
   { id: 'thermal2', name: '数字火控 + 稳定 + 二代热成像', night: 'thermal2', fcs: 'digital', stabilizer: true, nbc: 3, radio: 3, era: 1990 },
+  { id: 'aps_drozd', name: '主动防御 · Drozd', night: 'none', fcs: 'none', stabilizer: false, nbc: 0, radio: 0, aps: true, era: 1990 },
 ]
 
 // ────────────────────────────────────────────────────────────

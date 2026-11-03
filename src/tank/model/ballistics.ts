@@ -158,9 +158,9 @@ export function canDefeat(
 }
 
 /** 弹丸截面密度 kg/m²：只用来在界面上解释「为什么这发弹掉得慢」。 */
-export function sectionalDensity(gun: GunDef): number {
+export function sectionalDensity(gun: GunDef, tech?: TechMods): number {
   const d = gun.caliber / 1000
-  return penetratorMass(gun) / (Math.PI * (d / 2) * (d / 2))
+  return penetratorMass(gun, tech) / (Math.PI * (d / 2) * (d / 2))
 }
 
 /** 弹丸全重，界面用 */

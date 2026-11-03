@@ -210,7 +210,8 @@ function sameSpec(a: LineSpec, b: LineSpec): boolean {
     a.baseHours === b.baseHours &&
     a.unitKg === b.unitKg &&
     a.material === b.material &&
-    Math.abs(a.yuanPerKg - b.yuanPerKg) < 1e-6
+    Math.abs(a.yuanPerKg - b.yuanPerKg) < 1e-6 &&
+    Math.abs((a.upkeepMult ?? 1) - (b.upkeepMult ?? 1)) < 1e-6
   )
 }
 

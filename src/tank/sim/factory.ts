@@ -73,6 +73,8 @@ export interface LineSpec {
   material: ArmorMaterialId
   /** 混成料价（元/公斤）= 单台材料费 / 单台重量 */
   yuanPerKg: number
+  /** 维护费倍率：炮管寿命科技让它低于 1 */
+  upkeepMult?: number
 }
 
 export type LineState = 'running' | 'idle' | 'retooling'
@@ -152,6 +154,7 @@ export function specOf(tank: Tank): LineSpec {
     unitKg: Math.round(tank.physical.mass),
     material: tank.design.armor.material,
     yuanPerKg: tank.physical.mass > 0 ? tank.cost.material / tank.physical.mass : 0,
+    upkeepMult: 1,
   }
 }
 
@@ -214,7 +217,7 @@ export function lineDailyWage(line: ProductionLine): number {
 
 /** 一天维持费（含停工时的看厂费）。 */
 export function lineDailyUpkeep(line: ProductionLine): number {
-  const full = lineDailyWage(line) * UPKEEP_RATIO
+  const full = lineDailyWage(line) * UPKEEP_RATIO * (line.spec.upkeepMult ?? 1)
   return line.state === 'running' ? full : full * (IDLE_UPKEEP_RATIO / UPKEEP_RATIO)
 }
 

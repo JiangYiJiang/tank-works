@@ -28,8 +28,10 @@ export interface LineActionResult {
 
 /** 当前产品在「今天」的制造参数：料价按市场系数浮动。 */
 export function specForGame(state: GameState): ReturnType<typeof specOf> {
-  const spec = specOf(buildTank(state.design, techMods(state.research)))
+  const mods = techMods(state.research)
+  const spec = specOf(buildTank(state.design, mods))
   spec.yuanPerKg *= materialFactor(spec.material, state.day)
+  spec.upkeepMult = 1 / (mods.barrelLife ?? 1)
   return spec
 }
 

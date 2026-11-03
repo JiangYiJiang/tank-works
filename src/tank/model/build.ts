@@ -75,6 +75,7 @@ export function buildTank(design: TankDesign, tech: TechMods = NO_TECH): Tank {
   const realGun = resolveGun(gun, design.mods)
   const ballistic = solveBallistics(gun, design.mods, tech)
   const turretCrew = Math.max(1, crew - 2)
+  const hasAps = aux.aps === true
 
   const physical: TankPhysical = {
     mass: mass.total,
@@ -90,7 +91,7 @@ export function buildTank(design: TankDesign, tech: TechMods = NO_TECH): Tank {
     armorFront: prot.hull,
     armorTurret: prot.turret,
     armorSide: prot.side,
-    armorFrontCe: prot.hullCe,
+    armorFrontCe: prot.hullCe + (hasAps ? 400 : 0),
     armorTurretCe: prot.turretCe,
     armorSideCe: prot.sideCe,
     pen: penetration(realGun, tech),
@@ -99,6 +100,7 @@ export function buildTank(design: TankDesign, tech: TechMods = NO_TECH): Tank {
     rounds: gun.rounds,
     reloadSec: reloadSeconds(realGun, turretCrew),
     depression: depressionOf(geo.ring),
+    aps: hasAps,
   }
 
   const raw = rawDimsFrom(physical, adapt.total)

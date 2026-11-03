@@ -28,8 +28,12 @@ export function projectileMass(gun: GunDef): number {
 }
 
 /** 弹芯质量 kg：真正参与穿甲的那部分。 */
-export function penetratorMass(gun: GunDef): number {
-  return projectileMass(gun) * look(TUNING.gun.coreShare, gun.shell, 1)
+export function penetratorMass(gun: GunDef, tech?: TechMods): number {
+  const base = projectileMass(gun) * look(TUNING.gun.coreShare, gun.shell, 1)
+  // 密度科技只作用于长杆 / 脱壳弹：同样的芯，密度从 15 提到 18/19
+  const subcaliber = gun.shell === 'apds' || gun.shell === 'apfsds' || gun.shell === 'apfsds2'
+  const densityMult = subcaliber && tech?.density ? tech.density / 15 : 1
+  return base * densityMult
 }
 
 /** 弹芯直径 mm。全口径弹等于口径，脱壳弹远小于口径。 */
@@ -73,7 +77,7 @@ export function reloadSeconds(gun: GunDef, turretCrew: number): number {
     return perCaliber * gun.caliber
   }
   const v = muzzleVelocity(gun, tech)
-  const m = penetratorMass(gun)
+  const m = penetratorMass(gun, tech)
   const d = penetratorDiameter(gun)
   const k = look(t.deMarreK, gun.shell, 4)
   const raw = (t.penScale * Math.pow(v, t.vExp) * Math.pow(m, t.mExp)) / (k * Math.pow(d, t.dExp))

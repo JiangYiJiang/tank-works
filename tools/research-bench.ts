@@ -14,6 +14,8 @@ import { STARTING_TECH, TECH_BY_ID } from '../src/tank/data/tech'
 import { HISTORICAL } from '../src/tank/data/historical'
 import { createGame, createResearch } from '../src/tank/sim/state'
 import { buildTank } from '../src/tank/model/build'
+import { addLine, createFactory, lineDailyUpkeep, specOf } from '../src/tank/sim/factory'
+import { specForGame } from '../src/tank/sim/lines'
 import { decodeSave, encodeSave } from '../src/tank/sim/save'
 
 let pass = 0
@@ -91,11 +93,31 @@ mr.mastered['armor.form'] = 2
 mr.mastered['ammo.prop'] = 2
 mr.mastered['ammo.ap'] = 2
 mr.mastered['ammo.heat'] = 2
+mr.mastered['ammo.pen'] = 2
+mr.mastered['ammo.apfsds'] = 2
+mr.mastered['ammo.prop'] = 3
 const mods = techMods(mr)
 check('焊接把工时打到 ×0.85', mods.labor === 0.85, String(mods.labor))
-check('双基发射药 ×1.08', Math.abs(mods.charge - 1.08) < 1e-9, String(mods.charge))
+check('双基 + 三基发射药累乘 ×1.1448', Math.abs(mods.charge - 1.1448) < 1e-9, String(mods.charge))
 check('被帽弹斜板响应 0.85', mods.slopeExp?.ap === 0.85, String(mods.slopeExp?.ap))
 check('破甲弹口径系数 1.8', mods.heatPerCaliber === 1.8, String(mods.heatPerCaliber))
+check('弹芯密度 18', mods.density === 18, String(mods.density))
+check('炮管寿命 ×1.5', mods.barrelLife === 1.5, String(mods.barrelLife))
+
+const m1 = HISTORICAL.find((h) => h.name.includes('M1A1'))!
+const m1Base = buildTank(m1.design)
+const m1Tuned = buildTank(m1.design, mods)
+check('高密度弹芯提高长杆穿深', m1Tuned.raw.pen > m1Base.raw.pen, `${m1Tuned.raw.pen} vs ${m1Base.raw.pen}`)
+
+const upGame = createGame(9)
+upGame.research.mastered['ammo.prop'] = 3
+const upFactory = createFactory()
+const upLine = addLine(upFactory, specForGame(upGame), 200, 1)
+upLine.state = 'running'
+const baseFactory = createFactory()
+const baseLine = addLine(baseFactory, specOf(buildTank(upGame.design)), 200, 1)
+baseLine.state = 'running'
+check('炮管寿命降低维护费', lineDailyUpkeep(upLine) < lineDailyUpkeep(baseLine), `${lineDailyUpkeep(upLine)} vs ${lineDailyUpkeep(baseLine)}`)
 
 const baseTank = buildTank(ft.design)
 const tunedTank = buildTank(ft.design, mods)
