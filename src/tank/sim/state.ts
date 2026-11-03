@@ -3,17 +3,30 @@
  *
  * 一条铁律：**存档里只放「不能被重新算出来的东西」。**
  *
- * 所以这里没有事件队列，只有两个游标（era / news）。
- * 历史快讯是静态表，时代是静态表，威胁水位是静态曲线 ——
- * 玩家推进到第 20,000 天时，存档大小和第 10 天一模一样。
+ * 所以这里没有事件队列，只有两个游标（era / news）——历史快讯和时代都是静态表，
+ * 推进到第 20,000 天时，这部分和第一天一样大。
+ *
+ * v3 起，存档开始装「玩家真正做出来的东西」：当前产品、产线、订单、在手合同。
+ * 这些都是玩家动作的结果，重算不出来，必须存。
  */
 
 import { ERAS, NEWS, TOTAL_DAYS, eraIndexAt } from './calendar'
+import { HISTORICAL } from '../data/historical'
+import type { RawDims, TankDesign } from '../types'
+import type { FactoryState } from './factory'
 
-export const STATE_VERSION = 2
+export const STATE_VERSION = 3
 
 /** 日志最多留这么多条。够看，又不会让存档随游戏时间一起涨。 */
 export const LOG_CAP = 160
+
+/**
+ * 开局现金。
+ *
+ * 临时尺度：一台 1915 年水平的车约 ¥21 万，一笔小单（4 台）的料 + 工资约 ¥80 万。
+ * ¥200 万够走两个来回，但不够直接上大单 —— 等 P0-3 经济尺度重定后再改。
+ */
+export const START_CASH = 2_000_000
 
 export type LogKind = 'era' | 'news' | 'build' | 'order' | 'money' | 'tech' | 'note'
 
@@ -22,6 +35,36 @@ export interface LogEntry {
   d: number
   k: LogKind
   t: string
+}
+
+/** 一份招标：客户、数量、交期、单价、四维门槛。 */
+export interface Offer {
+  id: string
+  /** 客户国 */
+  nation: string
+  /** 客户参照的现役车（也是门槛与价的来源） */
+  ref: string
+  qty: number
+  /** 交期（绝对天序号） */
+  deadline: number
+  /** 单台采购价 */
+  unitPrice: number
+  /** 四维最低要求（原始物理量，不是分） */
+  need: RawDims
+  /** 总分门槛 */
+  totalMin: number
+}
+
+/** 已经接下的订单。 */
+export interface ActiveContract extends Offer {
+  /** 已交付台数 */
+  delivered: number
+  /** 接单那天 */
+  acceptedDay: number
+  /** 逾期过一次就记日志，避免每天刷 */
+  late: boolean
+  /** 已经收到的回款（含逾期折扣） */
+  paid: number
 }
 
 export interface GameState {
@@ -38,6 +81,20 @@ export interface GameState {
   log: LogEntry[]
   /** 一局是否已经结束 */
   over: boolean
+  /** 当前产品：设计局里那一套六槽位 */
+  design: TankDesign
+  /** 第一条产线；没接单之前是 null（空档期不烧钱） */
+  factory: FactoryState | null
+  /** 手上的订单 */
+  contract: ActiveContract | null
+  /** 桌上有哪几份标 */
+  offers: Offer[]
+}
+
+/** 开局车：FT-17。返回一份深拷贝，避免玩家改设计时污染历史 fixture。 */
+export function starterDesign(): TankDesign {
+  const h = HISTORICAL.find((x) => x.name.includes('FT-17')) ?? HISTORICAL[0]!
+  return JSON.parse(JSON.stringify(h.design)) as TankDesign
 }
 
 export function createGame(seed: number): GameState {
@@ -45,13 +102,18 @@ export function createGame(seed: number): GameState {
     version: STATE_VERSION,
     seed,
     day: 0,
-    cash: 500_000,
+    cash: START_CASH,
     era: eraIndexAt(0),
     newsCursor: 0,
     log: [],
     over: false,
+    design: starterDesign(),
+    factory: null,
+    contract: null,
+    offers: [],
   }
   pushLog(state, { d: 0, k: 'note', t: `开工。${ERAS[state.era]!.blurb}` })
+  pushLog(state, { d: 0, k: 'note', t: '厂里只有一条产线、一份刚开张的名声 —— 先看订单。' })
   return state
 }
 

@@ -43,15 +43,20 @@ check('时代推进到最后一个', g.era === ERAS.length - 1, `实际 ${g.era}
 check('快讯游标扫完', g.newsCursor === NEWS.length, `实际 ${g.newsCursor}`)
 check('日志没爆', g.log.length <= 160, `实际 ${g.log.length} 条`)
 
-// ── 3. 存档大小不随游戏时间涨 ──────────────────────────────
+// ── 3. 存档大小有上限 ──────────────────────────────────────
+// v3 起存档多了产品、招标、产线；日志封顶 160 条，所以大小应当收敛而不是线性增长。
 const early = createGame(7)
 advanceDays(early, 10)
 const late = createGame(7)
 advanceDays(late, 20_000)
+const end = createGame(7)
+advanceDays(end, TOTAL_DAYS)
 const a = encodeSave(early).length
 const b = encodeSave(late).length
-console.log(`\n  存档：第 10 天 ${a} 字节 / 第 20000 天 ${b} 字节`)
-check('存档大小基本不涨（差 < 2KB）', Math.abs(a - b) < 2000, `${a} vs ${b}`)
+const c = encodeSave(end).length
+console.log(`\n  存档：第 10 天 ${a} 字节 / 第 20000 天 ${b} 字节 / 第 28124 天 ${c} 字节`)
+check('存档大小有上限（满日志后不再涨）', Math.abs(c - b) < 1000, `${b} vs ${c}`)
+check('存档不会无限膨胀（早期到末期差 < 4KB）', Math.abs(c - a) < 4000, `${a} vs ${c}`)
 
 // ── 4. 确定性 ─────────────────────────────────────────────
 const r1 = createGame(12345)
@@ -81,6 +86,14 @@ const clamped = decodeSave('{"v":2,"day":999999,"cash":"x","log":[{"d":-5,"k":"?
 check('超范围天数被夹住', clamped?.day === TOTAL_DAYS - 1, `实际 ${clamped?.day}`)
 check('坏字段被清成 0', clamped?.cash === 0)
 check('坏日志条目保留文字、改成 note', clamped?.log[0]?.k === 'note' && clamped?.log[0]?.t === 'hello')
+
+// ── 6b. v1 / v2 老存档迁移 ────────────────────────────────
+const migrated = decodeSave('{"v":2,"seed":1,"day":100,"cash":5,"over":false,"log":[]}')
+check('v2 存档能读', migrated !== null && migrated.day === 100)
+check('v2 迁移出默认产品', migrated?.design.name === 'FT-17', migrated?.design.name)
+check('v2 没有产线与订单', migrated?.factory === null && migrated?.contract === null)
+const migratedV1 = decodeSave('{"v":1,"seed":1,"day":10,"cash":1}')
+check('v1 存档也能读', migratedV1 !== null && migratedV1.design.name === 'FT-17')
 
 // ── 7. 时间轴本身 ─────────────────────────────────────────
 let monotonic = true

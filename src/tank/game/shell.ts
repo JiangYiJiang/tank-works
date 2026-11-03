@@ -1,34 +1,31 @@
 /**
- * 游戏外壳：时间在走。
+ * 游戏外壳：时间在走，厂子也在走。
  *
- * 这一步只有一件事是真的 —— 时钟。账本、订单、产线都还没接，
- * 但时间轴本身必须是真的：能暂停、能变速、能跳过、能读档，而且不会越跑越卡。
+ * v3 起，这里第一次有了闭环：
+ *   接单 → 产线排产（工时/料/工资）→ 交付 → 回款 → 下一单
  *
- * 两条渲染纪律：
- *   1. 每帧只改 textContent，绝不重建 DOM（30 天/秒时一秒钟要刷十几次）
+ * 两条渲染纪律没变：
+ *   1. 每帧只改 textContent；只有「结构真的变了」才重建列表
  *   2. 日志只在长度变了时重建
  */
 
-import {
-  ERAS,
-  NEWS,
-  TOTAL_DAYS,
-  eraIndexAt,
-  formatDate,
-  formatMonth,
-  threatAt,
-} from '../sim/calendar'
+import { ERAS, TOTAL_DAYS, formatDate, formatMonth, threatAt } from '../sim/calendar'
 import { advanceDays, skipToNextEvent } from '../sim/advance'
-import { createGame, daysLeft, progress, type GameState, type LogEntry } from '../sim/state'
+import { createGame, daysLeft, progress, pushLog, type GameState, type LogEntry } from '../sim/state'
 import { decodeSave, encodeSave } from '../sim/save'
+import { acceptOffer, needText, productCandidates, productMeets, refreshOffers } from '../sim/contract'
+import { buildTank } from '../model/build'
+import { daysPerUnit, inTransitKg, stockOf } from '../sim/factory'
 import type { SaveStore } from '../../platform/storage'
 
-const SAVE_KEY = 'tank-works.save.v2'
+const SAVE_KEY = 'tank-works.save.v3'
+/** v2 及更早的存档只存日期与现金，读回来继续用。 */
+const LEGACY_SAVE_KEY = 'tank-works.save.v2'
 const SPEEDS = [1, 3, 10, 30] as const
 const RENDER_INTERVAL_MS = 70
 const FEED_LIMIT = 60
 
-type PauseReason = 'manual' | 'event' | 'ended'
+type PauseReason = 'manual' | 'event' | 'contract' | 'ended'
 
 export interface GameOptions {
   storage: SaveStore
@@ -50,6 +47,9 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node
 }
 
+const money = (n: number): string => `¥${Math.round(n).toLocaleString('en-US')}`
+const num = (n: number): string => Math.round(n).toLocaleString('en-US')
+
 const KIND_CLASS: Record<LogEntry['k'], string> = {
   era: 'k-era',
   news: 'k-news',
@@ -70,8 +70,12 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   const dayParam = new URLSearchParams(location.search).get('day')
   const forced =
     dayParam === null ? null : Math.max(0, Math.min(TOTAL_DAYS - 1, Math.floor(Number(dayParam)) || 0))
-  let state: GameState = (forced === null ? decodeSave(storage.read(SAVE_KEY)) : null) ?? createGame(seed())
+  const saved = storage.read(SAVE_KEY) ?? storage.read(LEGACY_SAVE_KEY)
+  let state: GameState = (forced === null ? decodeSave(saved) : null) ?? createGame(seed())
   if (forced !== null && forced > 0) advanceDays(state, forced)
+  // 老存档 / 新开局都可能没有标；没有在手订单就按当前时代补一批。
+  refreshOffers(state)
+
   let speed = 3
   let paused = false
   let pauseReason: PauseReason = 'manual'
@@ -82,6 +86,8 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   let last = lastFrame
   let lastRender = 0
   let renderedLogCount = -1
+  let offerSig = ''
+  let candidateSig = ''
   let flashUntil = 0
   let savedAtDay = state.day
 
@@ -116,11 +122,18 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   }
   timeline.append(cursor)
 
-  const cashValue = el('span', { class: 'kv-num' })
+  const cashValue = el('span', { class: 'kv-num cash-value' })
+  const leftValue = el('span', { class: 'kv-num' })
+  const productSelect = el('select', { class: 'sel' })
+  const productStats = el('div', { class: 'mini-grid' })
+  const productHint = el('p', { class: 'hintline' })
+
+  const offersWrap = el('div', { class: 'offers' })
+  const contractWrap = el('div', { class: 'contract' })
+
   const threatBar = el('div', { class: 'bar-fill' })
   const threatWrap = el('div', { class: 'bar' }, threatBar)
   const threatWord = el('span', { class: 'threat-word' })
-  const leftValue = el('span', { class: 'kv-num' })
   const eraBlurb = el('p', { class: 'blurb' })
 
   const sidebar = el(
@@ -132,8 +145,11 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       el('h2', { text: '厂子' }),
       el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '现金' }), cashValue),
       el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '剩余' }), leftValue),
-      el('p', { class: 'hintline', text: '现金流、产线、订单都还没接上 —— 这一步只做时间。' }),
+      el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '产品' }), productSelect),
+      productStats,
+      productHint,
     ),
+    el('section', { class: 'panel' }, el('h2', { text: '订单' }), offersWrap, contractWrap),
     el(
       'section',
       { class: 'panel' },
@@ -181,12 +197,40 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       // 今天已经没有可跳的事件了，那就直接跑到底
       advanceDays(state, TOTAL_DAYS)
     }
-    pauseReason = 'event'
+    pauseReason = state.over ? 'ended' : r.contractDone ? 'contract' : 'event'
     acc = 0
+    offerSig = ''
     dirty = true
     render()
     save()
   }
+
+  function handleAccept(offerId: string): void {
+    const r = acceptOffer(state, offerId)
+    if (!r.ok) {
+      showFlash({ d: state.day, k: 'note', t: r.msg })
+      return
+    }
+    paused = false
+    pauseReason = 'manual'
+    acc = 0
+    offerSig = ''
+    dirty = true
+    render()
+    save()
+  }
+
+  productSelect.addEventListener('change', () => {
+    if (state.contract) return
+    const h = productCandidates(state.day).find((c) => c.design.name === productSelect.value)
+    if (!h) return
+    state.design = JSON.parse(JSON.stringify(h.design)) as typeof state.design
+    pushLog(state, { d: state.day, k: 'note', t: `改用 ${h.name}（${h.year}）。` })
+    offerSig = ''
+    dirty = true
+    render()
+    save()
+  })
 
   pauseBtn.addEventListener('click', togglePause)
   jumpBtn.addEventListener('click', doJump)
@@ -223,7 +267,141 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     if (document.visibilityState === 'hidden') save()
   })
 
-  // ── 渲染 ─────────────────────────────────────────────────
+  // ── 渲染：产品 / 订单 / 产线 ─────────────────────────────
+
+  function statCell(label: string, value: string): HTMLElement {
+    return el(
+      'div',
+      { class: 'mini-cell' },
+      el('span', { class: 'mini-k', text: label }),
+      el('span', { class: 'mini-v', text: value }),
+    )
+  }
+
+  function renderProduct(): void {
+    const candidates = productCandidates(state.day)
+    const sig = candidates.map((c) => c.design.name).join('|')
+    if (sig !== candidateSig) {
+      candidateSig = sig
+      productSelect.replaceChildren()
+      for (const c of candidates) {
+        productSelect.append(el('option', { value: c.design.name, text: `${c.year} · ${c.name}` }))
+      }
+      if (!candidates.some((c) => c.design.name === state.design.name)) {
+        productSelect.append(el('option', { value: state.design.name, text: state.design.name }))
+      }
+    }
+    productSelect.value = state.design.name
+    productSelect.disabled = state.contract !== null
+
+    const tank = buildTank(state.design)
+    productStats.replaceChildren(
+      statCell('装甲', `${Math.round(tank.raw.armor)} mm`),
+      statCell('火力', `${Math.round(tank.raw.pen)} mm`),
+      statCell('机动', `${Math.round(tank.raw.offroad)} km/h`),
+      statCell('适应', `${Math.round(tank.raw.adapt)}`),
+      statCell('总分', `${tank.score.total}`),
+      statCell('单台', money(tank.cost.total)),
+    )
+    productHint.textContent = state.contract
+      ? '订单执行中，交完才能换产品。'
+      : '换产品在下次接单时生效：熟练度只保留 35%。'
+  }
+
+  function renderOrders(): void {
+    const c = state.contract
+    const line = state.factory?.lines[0]
+    const sig = c
+      ? `c|${c.id}|${c.delivered}|${c.paid}|${c.late}|${state.day}|${line?.state ?? ''}|${line?.starved ?? 0}`
+      : `o|${state.offers.map((o) => o.id).join(',')}|${state.design.name}`
+    if (sig === offerSig) return
+    offerSig = sig
+    offersWrap.replaceChildren()
+    contractWrap.replaceChildren()
+    if (c) {
+      renderContract(c)
+      return
+    }
+    if (state.offers.length === 0) {
+      offersWrap.append(el('p', { class: 'hintline', text: '桌上暂时没有标，等下一个时代。' }))
+      return
+    }
+    const tank = buildTank(state.design)
+    for (const o of state.offers) {
+      const ok = productMeets(tank, o)
+      const btn = el('button', { class: 'chip chip-accept', text: ok ? '接单' : '不达标' })
+      btn.disabled = !ok
+      btn.addEventListener('click', () => handleAccept(o.id))
+      offersWrap.append(
+        el(
+          'div',
+          { class: 'offer' },
+          el(
+            'div',
+            { class: 'offer-top' },
+            el('span', { class: 'offer-ref', text: `${o.nation} · ${o.ref} 级` }),
+            el('span', { class: 'offer-qty', text: `${o.qty} 台` }),
+          ),
+          el('div', { class: 'offer-need', text: needText(o) }),
+          el(
+            'div',
+            { class: 'offer-meta' },
+            el('span', { text: `${money(o.unitPrice)}/台` }),
+            el('span', { text: `交期 ${formatDate(o.deadline)}` }),
+          ),
+          btn,
+        ),
+      )
+    }
+  }
+
+  function renderContract(c: NonNullable<GameState['contract']>): void {
+    const line = state.factory?.lines[0]
+    const pct = Math.min(100, (c.delivered / Math.max(1, c.qty)) * 100)
+    const meterFill = el('div', { class: 'meter-fill' })
+    meterFill.style.width = `${pct.toFixed(1)}%`
+    const late = state.day > c.deadline
+    const due = late ? `已逾期 ${state.day - c.deadline} 天` : `还剩 ${c.deadline - state.day} 天`
+    const status = !line ? '没有产线' : line.starved > 0 ? '缺料停线' : line.state === 'running' ? '运转中' : '停工'
+    const per = line ? daysPerUnit(line) : Infinity
+    const materialDays =
+      line && state.factory
+        ? per * ((stockOf(state.factory, line.spec.material) + inTransitKg(state.factory)) / Math.max(1, line.spec.unitKg))
+        : 0
+
+    contractWrap.append(
+      el(
+        'div',
+        { class: 'contract-head' },
+        el('span', { class: 'contract-ref', text: `${c.nation} · ${c.ref} 级` }),
+        el('span', { class: `badge ${late ? 'bad' : 'ok'}`, text: due }),
+      ),
+      el('div', { class: 'meter' }, meterFill),
+      el(
+        'div',
+        { class: 'contract-line' },
+        el('span', { text: `已交付 ${c.delivered} / ${c.qty} 台` }),
+        el('span', { class: 'money', text: `回款 ${money(c.paid)}` }),
+      ),
+      el(
+        'div',
+        { class: 'contract-line dim' },
+        el('span', { text: `单价 ${money(c.unitPrice)}` }),
+        el('span', { text: `交期 ${formatDate(c.deadline)}` }),
+      ),
+      el(
+        'div',
+        { class: 'contract-line dim' },
+        el('span', { text: `产线 ${status}` }),
+        el('span', { text: line ? `单台 ${per.toFixed(1)} 天 · 料够 ${materialDays.toFixed(1)} 天` : '—' }),
+      ),
+    )
+    if (c.late) {
+      contractWrap.append(el('p', { class: 'hintline', text: '已逾期：后续交付按单价 70% 结算。' }))
+    }
+  }
+
+  // ── 渲染：主循环 ─────────────────────────────────────────
 
   function render(): void {
     const dateStr = formatDate(state.day)
@@ -232,8 +410,8 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     eraText.textContent = state.over ? '结束' : era.name
     eraBlurb.textContent = era.blurb
 
-    cashValue.textContent = `¥${Math.round(state.cash).toLocaleString('en-US')}`
-    leftValue.textContent = state.over ? '—' : `${daysLeft(state).toLocaleString('en-US')} 天`
+    cashValue.textContent = money(state.cash)
+    leftValue.textContent = state.over ? '—' : `${num(daysLeft(state))} 天`
 
     const threat = threatAt(state.day)
     threatBar.style.width = `${(threat * 100).toFixed(0)}%`
@@ -242,12 +420,20 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
 
     cursor.style.left = `${(progress(state) * 100).toFixed(3)}%`
 
-    clockMeta.textContent = `第 ${(state.day + 1).toLocaleString('en-US')} / ${TOTAL_DAYS.toLocaleString('en-US')} 天 · ${formatMonth(state.day)}`
+    clockMeta.textContent = `第 ${num(state.day + 1)} / ${num(TOTAL_DAYS)} 天 · ${formatMonth(state.day)}`
 
     pauseBtn.classList.toggle('on', paused)
     for (const b of speedButtons) b.classList.toggle('on', !paused && Number(b.dataset.speed) === speed)
-    pausedTag.textContent = pauseReason === 'event' ? '自动暂停 · 世界变了' : '已暂停'
+    pausedTag.textContent =
+      pauseReason === 'contract'
+        ? '订单完成 · 接下一单'
+        : pauseReason === 'event'
+          ? '自动暂停 · 世界变了'
+          : '已暂停'
     pausedTag.classList.toggle('show', paused && !state.over)
+
+    renderProduct()
+    renderOrders()
 
     if (state.log.length !== renderedLogCount) {
       renderedLogCount = state.log.length
@@ -266,7 +452,9 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     }
 
     if (state.over) {
-      banner.textContent = '这一局结束了。刷新页面可以开新的一局。'
+      const last = state.log[state.log.length - 1]
+      const broke = last?.t.includes('破产') === true
+      banner.textContent = broke ? '破产了。刷新页面可以开新的一局。' : '这一局结束了。刷新页面可以开新的一局。'
       banner.classList.add('show')
     }
   }
@@ -307,6 +495,10 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
         if (r.ended) {
           paused = true
           pauseReason = 'ended'
+        } else if (r.contractDone) {
+          paused = true
+          pauseReason = 'contract'
+          if (state.log.length > sizeBefore) showFlash(state.log[state.log.length - 1]!)
         } else if (r.eraChanged || r.newsCount > 0) {
           paused = true
           pauseReason = 'event'
@@ -315,6 +507,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
         }
         acc = 0
         dirty = true
+        offerSig = ''
       }
       if (state.day - savedAtDay >= 400) save()
     }

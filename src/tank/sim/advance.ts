@@ -2,11 +2,12 @@
  * 让时间往前走。
  *
  * 这是整个游戏里唯一一个「热循环」：一次快进可能要走两万八千圈，
- * 所以每一圈只做两件事 —— 看时代边界过没过、看快讯到没到。
+ * 所以每一圈只做三件事 —— 时代边界、历史快讯、以及（有订单时）经济结算。
  * 没有事件队列、没有遍历、没有分配。
  */
 
 import { ERAS, NEWS, TOTAL_DAYS } from './calendar'
+import { economyDay, refreshOffers } from './contract'
 import { daysToNextEvent, pushLog, type GameState } from './state'
 
 export interface AdvanceResult {
@@ -14,6 +15,8 @@ export interface AdvanceResult {
   days: number
   eraChanged: boolean
   newsCount: number
+  /** 这一跳里有没有订单完成 */
+  contractDone: boolean
   /** 这一跳之后，游戏是不是结束了 */
   ended: boolean
 }
@@ -29,9 +32,10 @@ export function advanceDays(state: GameState, days: number): AdvanceResult {
   const start = state.day
   let eraChanged = false
   let newsCount = 0
+  let contractDone = false
 
   if (target === start) {
-    return { days: 0, eraChanged: false, newsCount: 0, ended: state.over }
+    return { days: 0, eraChanged: false, newsCount: 0, contractDone: false, ended: state.over }
   }
 
   for (let d = start + 1; d <= target; d++) {
@@ -41,6 +45,8 @@ export function advanceDays(state: GameState, days: number): AdvanceResult {
       eraChanged = true
       const e = ERAS[state.era]!
       pushLog(state, { d, k: 'era', t: `${e.name}：${e.blurb}` })
+      // 换时代＝换客户：没有在手订单就重新招标。
+      if (!state.contract) refreshOffers(state, false, d)
     }
 
     // 历史快讯：游标扫过静态表，一天最多一条。
@@ -51,6 +57,21 @@ export function advanceDays(state: GameState, days: number): AdvanceResult {
       newsCount++
       break
     }
+
+    // 桌上的标全过期了：按当天重新招标（同一时代，交期顺延）。
+    if (!state.contract && state.offers.length > 0 && state.offers.every((o) => o.deadline <= d)) {
+      refreshOffers(state, true, d)
+    }
+
+    // 经济：只有手上有订单时才转产线。空档期冻结（M1 简化）。
+    if (state.contract && !state.over) {
+      const e = economyDay(state, d)
+      if (e.contractDone) contractDone = true
+      if (e.bankrupt) {
+        state.day = d
+        return { days: d - start, eraChanged, newsCount, contractDone, ended: true }
+      }
+    }
   }
 
   state.day = target
@@ -58,10 +79,10 @@ export function advanceDays(state: GameState, days: number): AdvanceResult {
   if (!state.over && state.day >= TOTAL_DAYS - 1) {
     state.over = true
     pushLog(state, { d: state.day, k: 'note', t: '1991 年 12 月 31 日。这一局结束了。' })
-    return { days: target - start, eraChanged, newsCount, ended: true }
+    return { days: target - start, eraChanged, newsCount, contractDone, ended: true }
   }
 
-  return { days: target - start, eraChanged, newsCount, ended: state.over }
+  return { days: target - start, eraChanged, newsCount, contractDone, ended: state.over }
 }
 
 /**

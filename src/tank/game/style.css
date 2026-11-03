@@ -185,7 +185,7 @@ body {
 
 .body {
   display: grid;
-  grid-template-columns: 264px minmax(0, 1fr);
+  grid-template-columns: 320px minmax(0, 1fr);
   gap: 14px;
   margin-top: 16px;
   flex: 1;
@@ -338,6 +338,173 @@ body {
 
 .k-order .feed-text,
 .k-money .feed-text {
+  color: var(--green);
+}
+
+/* ── 产品 / 订单 / 产线 ─────────────────────────────── */
+
+.sel {
+  max-width: 152px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--panel-2);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.sel:disabled {
+  opacity: 0.55;
+}
+
+.mini-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.mini-cell {
+  padding: 6px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  background: var(--panel-2);
+}
+
+.mini-k {
+  display: block;
+  color: var(--faint);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.mini-v {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.offers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.offer {
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--panel-2);
+}
+
+.offer-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.offer-ref {
+  font-size: 12px;
+}
+
+.offer-qty {
+  color: var(--amber);
+  font-size: 12px;
+}
+
+.offer-need {
+  margin-top: 4px;
+  color: var(--faint);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.offer-meta {
+  display: flex;
+  justify-content: space-between;
+  margin: 3px 0 7px;
+  color: var(--dim);
+  font-size: 10.5px;
+}
+
+.chip-accept {
+  width: 100%;
+  color: var(--amber);
+  border-color: #45361f;
+}
+
+.chip-accept:hover {
+  background: rgba(217, 162, 78, 0.08);
+}
+
+.chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chip:disabled:hover {
+  color: var(--dim);
+  border-color: var(--line);
+}
+
+.contract-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.contract-ref {
+  font-size: 12px;
+}
+
+.badge {
+  padding: 2px 7px;
+  border-radius: 2px;
+  font-size: 10.5px;
+}
+
+.badge.ok {
+  color: var(--green);
+  background: rgba(127, 176, 105, 0.1);
+}
+
+.badge.bad {
+  color: var(--red);
+  background: rgba(210, 99, 74, 0.12);
+}
+
+.meter {
+  height: 6px;
+  margin-bottom: 8px;
+  border-radius: 3px;
+  background: #1d232b;
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  background: var(--green);
+  transition: width 0.2s linear;
+}
+
+.contract-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11.5px;
+}
+
+.contract-line.dim {
+  color: var(--faint);
+  font-size: 10.5px;
+}
+
+.contract-line .money {
   color: var(--green);
 }
 
