@@ -747,6 +747,17 @@ body {
   color: var(--down);
 }
 
+.tech-note {
+  margin: 0;
+  color: var(--faint);
+  font-size: 11px;
+  text-align: right;
+}
+
+.tech-note.bad {
+  color: var(--down);
+}
+
 .txt {
   max-width: 168px;
   padding: 6px 8px;

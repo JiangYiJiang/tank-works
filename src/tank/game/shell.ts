@@ -23,12 +23,14 @@ import {
   slotsOf,
   speedOf,
   startResearch,
+  techSnapshot,
 } from '../sim/research'
 import { SLOT_UPGRADES, SPEED_UPGRADES, TECH_BY_ID } from '../data/tech'
 import { buildTank } from '../model/build'
 import { designYear } from '../model/era'
 import { daysPerUnit, inTransitKg, stockOf } from '../sim/factory'
 import { readAdopted } from '../../platform/design-handoff'
+import { writeTech } from '../../platform/tech-handoff'
 import type { SaveStore } from '../../platform/storage'
 
 const SAVE_KEY = 'tank-works.save.v4'
@@ -376,6 +378,16 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       storage.write(SAVE_KEY, encodeSave(state))
     } catch {
       /* 存档失败不该让游戏崩 */
+    }
+    publishTech()
+  }
+
+  /** 把「哪些零件能选、上限多少」写给设计局，避免它自己去读存档。 */
+  function publishTech(): void {
+    try {
+      writeTech(techSnapshot(state))
+    } catch {
+      /* 本地存储写不进去就退化成沙盒 */
     }
   }
 
@@ -760,6 +772,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
           paused = true
           pauseReason = 'research'
           if (state.log.length > sizeBefore) showFlash(state.log[state.log.length - 1]!)
+          publishTech()
         } else if (r.eraChanged || r.newsCount > 0) {
           paused = true
           pauseReason = 'event'
@@ -791,6 +804,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   }
 
   render()
+  publishTech()
   requestAnimationFrame(rafLoop)
 
   /*

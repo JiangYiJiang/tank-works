@@ -1,8 +1,8 @@
 # 坦克厂 · 游戏设计文档
 
-> 版本 `v0.7` · 最后更新 2026-11-03 · 工作区：`F:\tankfactory`
+> 版本 `v0.8` · 最后更新 2026-11-03 · 工作区：`F:\tankfactory`
 > 状态：设计局、研发局、制造局已跑通；游说局做了 M1 最小版（三档招标 → 接单 → 排产 → 交付 → 回款）；
-> 设计局的车可以交给主循环去卖；**科技树已经接进游戏**（研发项目、槽位/速度、零件与性能闸门）。
+> 设计局的车可以交给主循环去卖；**科技树已经接进游戏，设计局也按科技快照过滤零件**。
 > 仍是单产线、单客户类型，没有竞品 / 贿赂 / 阵营 / 信誉。
 >
 > 本文档只讲**设计与推导**。进度、待办、已知问题见 [STATUS.md](STATUS.md)；
@@ -950,7 +950,9 @@ effortFor(months, cost, techYear, currentYear) → { months, cost, mult }
 - **性能闸门**：倾角默认 20°、口径 57mm、倍径 30、装药 0.60、pike；由 `designCheck()` 统一判断，`acceptOffer()` 兜底。
 - **数据修正**：`ammo.pen.1` 补 10 月 / ¥90k，前置接到 `ammo.apcr.1` —— 否则这条梯子永远开不了工。
 
-**还没做**：`fn` 里的弹道系数（slopeExp / rangeKeep / heatPerCaliber / density / charge）还没进 `buildTank()`；设计局界面仍铺全表，由主循环拒绝非法车。
+**还没做**：`fn` 里的弹道系数（slopeExp / rangeKeep / heatPerCaliber / density / charge）还没进 `buildTank()`。
+
+设计局是独立页面，主循环用 `tank-works.tech.v1` 给它一份**科技快照**：零件白名单 + 上限。设计局按白名单过滤下拉、把倾角滑条卡在上限、没 pike 就不显示尖头选项；「采用此设计」时再跑一次 `designCheck()`。没有快照时（直接打开 `/tank.html`）是沙盒模式。
 
 ---
 
@@ -1095,7 +1097,7 @@ M1 与制造局原模型的差异：
 
 **M1 简化（待替换）**：空档期不计维持费；换型即时且免费；只有一条线、一类客户；没有贷款、信誉、竞品、贿赂；逾期只打折，不终止合同。
 
-**验证**：`npm run economy` → 42 项；`npm run smoke:game` → 67 项。
+**验证**：`npm run economy` → 42 项；`npm run smoke:game` → 68 项。
 
 ### 8.9 设计局 → 主循环（M2）
 
@@ -1117,7 +1119,7 @@ designYear = max(车体 era, 炮 era, 发动机 era, 悬挂 era, 辅助 era, 材
 
 **数据修正**：`ww2_simple`（苏联早期电台）年代 1944 → 1941。它被 T-34/76（1941）使用，按 1944 算会把整辆车判成超前 3 年。
 
-**还没做的**：零件没有按已掌握科技过滤（P2-15），所以设计局里仍能选到 1991 年的零件；闸门只能保证「卖不出去」，不能保证「造不出来」。
+**还没做的**：零件没有按已掌握科技过滤之前，设计局只能靠「成交时拒绝」——现在这一步已经由科技快照补上（§7.12）。
 
 ---
 
@@ -1392,7 +1394,7 @@ v1 / v2 / v3 老存档可以读：产品默认 FT-17，没有产线与订单，�
 |---|---|---|---|---|
 | 根路径 | `/` | `index.html` | 只做跳转：→ `/game.html` | ✅ 可用 |
 | 游戏壳 | `/game.html` | `src/tank/game/main.ts` | 日历、产品、招标、产线、现金、研发 | ✅ 可玩最小闭环 |
-| 设计局 | `/tank.html` | `src/tank/main.ts` | 拼车、看四维、看代价、把车交给主循环 | ✅ 可用 |
+| 设计局 | `/tank.html` | `src/tank/main.ts` | 拼车、看四维、看代价、按科技过滤、把车交给主循环 | ✅ 可用 |
 | 研发局 | `/research.html` | `src/tank/research-main.ts` | 科技树、超前/追赶、落后年数 | ✅ 可用 |
 | 制造局 | `/manufacture.html` | `src/tank/manufacture-main.ts` | 产线、仓库、学习曲线 | ✅ 独立试算页（主循环同一模型） |
 
@@ -1468,7 +1470,8 @@ tank-works/
 │  │  └─ game/shell.ts + style.css         游戏壳
 │  └─ platform/
 │     ├─ storage.ts          SaveStore 抽象
-│     └─ design-handoff.ts   设计局 → 主循环的 localStorage 交接
+│     ├─ design-handoff.ts   设计局 → 主循环的 localStorage 交接
+│     └─ tech-handoff.ts     主循环 → 设计局的科技快照
 ├─ probe/                    校准台、预算台、标定台（fit/ 子目录是标定器，不进产物）
 └─ tools/                    界面冒烟测试 + 文档表格生成
 ```
@@ -1529,6 +1532,7 @@ tank-works/
 | 26 | 设计交接走 localStorage | URL 参数 / 共享状态 | 两个页面独立入口，localStorage 最省事；以后换 Electron 改成文件 |
 | 27 | 零件闸门先按「板块年份 + 2」粗放解锁 | 每件零件配 requiredTech | 90 个零件逐个配表容易漏；先用板块年份保证可玩，再逐步细化 |
 | 28 | 研发只在有项目时扣维持费 | 空档也扣 | M1 权衡：不能让玩家因为忘点而破产；等固定开销系统成熟再改 |
+| 29 | 科技过滤走 localStorage 快照 | 设计局读存档 / 共享状态 | 两个页面独立入口；快照只包含零件白名单与上限，设计局不必知道研发实现 |
 
 ---
 
@@ -1633,18 +1637,18 @@ npm install           # 首次
 npm run dev           # 开发服务器 127.0.0.1:5273，四个页面
 npm run build         # 构建到 dist/（四个入口，相对路径）
 npm run preview       # 预览打包结果
-npm run check         # 全部检查：类型 + 校准 + 节奏 + 四套冒烟 + 研发 + 经济（253 项断言）
+npm run check         # 全部检查：类型 + 校准 + 节奏 + 四套冒烟 + 研发 + 经济（259 项断言）
 
 npm run design        # 19 辆历史车校准表
 npm run ballistics    # 弹道两轴表
 npm run tech          # 槽月预算 + 九策略
 npm run factory       # 制造局标定台（7 辆车 × 36 个月）
 npm run clock         # 时钟验收
-npm run research      # 研发验收（开工、槽位、闸门、迁移）
+npm run research      # 研发验收（开工、槽位、闸门、科技快照、迁移）
 npm run economy       # 经济闭环验收（接单 → 交付 → 回款）
 
 npm run smoke:tank    # 设计局界面 33 项
-npm run smoke:game    # 游戏壳界面 67 项
+npm run smoke:game    # 游戏壳界面 68 项
 npm run smoke:research # 研发局界面 27 项
 npm run smoke:mf      # 制造局界面 21 项
 

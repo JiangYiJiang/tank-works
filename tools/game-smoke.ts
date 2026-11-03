@@ -126,6 +126,13 @@ check('科技完成会自动暂停', txt(root7, '.paused-tag').includes('科技�
 check('完成后没有在研项目', all(root7, '.project').length === 0, `实际 ${all(root7, '.project').length}`)
 const raw7 = store7.read('tank-works.save.v4')
 check('存档里带研发状态', raw7 ? Array.isArray(JSON.parse(raw7).research?.projects) : false)
+const techRaw = win.localStorage.getItem('tank-works.tech.v1')
+const techSnap = techRaw ? (JSON.parse(techRaw) as { parts?: { hull?: string[] }; limits?: { slopeMax?: number } }) : null
+check(
+  '主循环发布了科技快照',
+  Array.isArray(techSnap?.parts?.hull) && techSnap.parts.hull.includes('ft') && typeof techSnap.limits?.slopeMax === 'number',
+  techRaw ? '快照存在' : '没有快照',
+)
 
 // v3 老存档：没有 research 字段，读回来应当补成开局研发
 const store8 = createMemoryStorage()

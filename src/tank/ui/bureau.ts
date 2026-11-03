@@ -27,7 +27,9 @@ import { solveGeometry } from '../model/geometry'
 import { muzzleVelocity } from '../model/gun'
 import { penetrationAt, losPenetrated, plateDefeated } from '../model/ballistics'
 import { designYear } from '../model/era'
+import { designCheck } from '../sim/research'
 import { writeAdopted } from '../../platform/design-handoff'
+import { readTech } from '../../platform/tech-handoff'
 import type { ArmorMaterialId, ShellType, Tank, TankDesign } from '../types'
 
 /**
@@ -107,16 +109,34 @@ function eraBenchmark(year: number, total: number) {
 // ────────────────────────────────────────────────────────────
 
 export function mountBureau(root: HTMLElement): void {
+  /** 主循环发布的科技快照；没有就是沙盒模式（全部零件可选）。 */
+  const tech = readTech()
+  const techState = tech ? { mastered: tech.mastered, projects: [], upgrades: [] } : null
+  const allowed = tech?.parts
+  const fits = (design: TankDesign): boolean => !techState || designCheck(design, techState).ok
+
+  const hulls = allowed ? HULLS.filter((h) => allowed.hull.includes(h.id)) : HULLS
+  const materials = allowed ? ARMOR_MATERIALS.filter((m) => allowed.material.includes(m.id)) : ARMOR_MATERIALS
+  const guns = allowed ? GUNS.filter((g) => allowed.gun.includes(g.id)) : GUNS
+  const engines = allowed ? ENGINES.filter((e) => allowed.engine.includes(e.id)) : ENGINES
+  const suspensions = allowed ? SUSPENSIONS.filter((s) => allowed.suspension.includes(s.id)) : SUSPENSIONS
+  const auxes = allowed ? AUXES.filter((a) => allowed.aux.includes(a.id)) : AUXES
+
   /**
    * 默认从 T-34/76 起手 —— 中间点最容易看出「改一处，掉多少」。
    * 支持 `?tank=虎王` 直接打开某辆历史车，方便复现和截图。
+   * 有科技快照时，只从「现在造得出来」的样车里挑。
    */
   const wanted = new URLSearchParams(location.search).get('tank')
+  const requested =
+    (wanted ? SAMPLES.find((s) => s.name.includes(wanted) || s.design.name.includes(wanted)) : undefined) ?? undefined
   const initial =
-    (wanted ? SAMPLES.find((s) => s.name.includes(wanted) || s.design.name.includes(wanted)) : undefined) ??
-    SAMPLES.find((s) => s.design.name === 'T-34/76') ??
+    (requested && fits(requested.design) ? requested : undefined) ??
+    SAMPLES.find((s) => s.design.name === 'T-34/76' && fits(s.design)) ??
+    SAMPLES.find((s) => fits(s.design)) ??
     SAMPLES[0]!
   const design: TankDesign = structuredClone(initial.design)
+  if (tech && tech.limits.pike <= 1) delete design.armor.pike
 
   const controls: Control[] = []
 
@@ -124,7 +144,11 @@ export function mountBureau(root: HTMLElement): void {
 
   function selectRow(label: string, options: readonly Option[], get: () => string, set: (v: string) => void): Control {
     const sel = el('select', { class: 'sel' })
-    for (const o of options) sel.append(el('option', { value: o.value, text: o.label }))
+    const list = [...options]
+    if (!list.some((o) => o.value === get())) {
+      list.push({ value: get(), label: `${get()}（未解锁）` })
+    }
+    for (const o of list) sel.append(el('option', { value: o.value, text: o.label }))
     sel.value = get()
     sel.addEventListener('change', () => {
       set(sel.value)
@@ -215,7 +239,10 @@ export function mountBureau(root: HTMLElement): void {
   group('样车')
   const presetSel = el('select', { class: 'sel' })
   presetSel.append(el('option', { value: '', text: '— 载入一辆历史样车 —' }))
-  for (const s of SAMPLES) presetSel.append(el('option', { value: s.design.name, text: `${s.year}  ${s.name}` }))
+  for (const s of SAMPLES) {
+    if (techState && !fits(s.design)) continue
+    presetSel.append(el('option', { value: s.design.name, text: `${s.year}  ${s.name}` }))
+  }
   presetSel.addEventListener('change', () => {
     const picked = SAMPLES.find((s) => s.design.name === presetSel.value)
     if (!picked) return
@@ -247,17 +274,18 @@ export function mountBureau(root: HTMLElement): void {
   add(
     selectRow(
       '型号',
-      HULLS.map((h) => ({ value: h.id, label: `${h.era}  ${h.name}` })),
+      hulls.map((h) => ({ value: h.id, label: `${h.era}  ${h.name}` })),
       () => design.hull,
       (v) => (design.hull = v),
     ),
   )
 
   group('装甲')
+  const slopeMax = tech?.limits.slopeMax ?? 70
   add(
     selectRow(
       '材料',
-      ARMOR_MATERIALS.map((m) => ({ value: m.id, label: `${m.era}  ${m.name}` })),
+      materials.map((m) => ({ value: m.id, label: `${m.era}  ${m.name}` })),
       () => design.armor.material,
       (v) => (design.armor.material = v as ArmorMaterialId),
     ),
@@ -267,7 +295,7 @@ export function mountBureau(root: HTMLElement): void {
       '炮塔材料',
       [
         { value: '', label: '同车体' },
-        ...ARMOR_MATERIALS.map((m) => ({ value: m.id, label: `${m.era}  ${m.name}` })),
+        ...materials.map((m) => ({ value: m.id, label: `${m.era}  ${m.name}` })),
       ],
       () => design.armor.turretMaterial ?? '',
       (v) => {
@@ -277,17 +305,19 @@ export function mountBureau(root: HTMLElement): void {
     ),
   )
   add(sliderRow('首上厚度', 0, 350, 1, ' mm', () => design.armor.front, (v) => (design.armor.front = v)))
-  add(sliderRow('首上倾角', 0, 70, 1, '°', () => design.armor.frontSlope, (v) => (design.armor.frontSlope = v)))
+  add(sliderRow('首上倾角', 0, slopeMax, 1, '°', () => design.armor.frontSlope, (v) => (design.armor.frontSlope = v)))
   add(sliderRow('侧面厚度', 0, 160, 1, ' mm', () => design.armor.side, (v) => (design.armor.side = v)))
   add(sliderRow('炮塔正面', 0, 450, 1, ' mm', () => design.armor.turretFront, (v) => (design.armor.turretFront = v)))
-  add(sliderRow('炮塔倾角', 0, 60, 1, '°', () => design.armor.turretSlope, (v) => (design.armor.turretSlope = v)))
-  add(checkRow('双斜面尖头（IS-3 式）', () => design.armor.pike === true, (v) => (design.armor.pike = v)))
+  add(sliderRow('炮塔倾角', 0, Math.min(60, slopeMax), 1, '°', () => design.armor.turretSlope, (v) => (design.armor.turretSlope = v)))
+  if (!tech || tech.limits.pike > 1) {
+    add(checkRow('双斜面尖头（IS-3 式）', () => design.armor.pike === true, (v) => (design.armor.pike = v)))
+  }
 
   group('火力')
   add(
     selectRow(
       '火炮',
-      GUNS.map((g) => ({ value: g.id, label: `${g.era}  ${g.name}` })),
+      guns.map((g) => ({ value: g.id, label: `${g.era}  ${g.name}` })),
       () => design.gun,
       (v) => (design.gun = v),
     ),
@@ -312,7 +342,7 @@ export function mountBureau(root: HTMLElement): void {
   add(
     selectRow(
       '发动机',
-      ENGINES.map((e) => ({ value: e.id, label: `${e.era}  ${e.name}` })),
+      engines.map((e) => ({ value: e.id, label: `${e.era}  ${e.name}` })),
       () => design.engine,
       (v) => (design.engine = v),
     ),
@@ -320,7 +350,7 @@ export function mountBureau(root: HTMLElement): void {
   add(
     selectRow(
       '悬挂',
-      SUSPENSIONS.map((s) => ({ value: s.id, label: `${s.era}  ${s.name}` })),
+      suspensions.map((s) => ({ value: s.id, label: `${s.era}  ${s.name}` })),
       () => design.suspension,
       (v) => (design.suspension = v),
     ),
@@ -330,7 +360,7 @@ export function mountBureau(root: HTMLElement): void {
   add(
     selectRow(
       '套件',
-      AUXES.map((a) => ({ value: a.id, label: `${a.era}  ${a.name}` })),
+      auxes.map((a) => ({ value: a.id, label: `${a.era}  ${a.name}` })),
       () => design.aux,
       (v) => (design.aux = v),
     ),
@@ -536,12 +566,21 @@ export function mountBureau(root: HTMLElement): void {
   // ── 装配 ──────────────────────────────────────────────────
 
   const adoptNote = el('span', { class: 'adopt-note' })
+  const techNote = el('p', { class: 'tech-note' })
   const adoptBtn = el('button', { class: 'adopt-btn', type: 'button' }, '采用此设计 →')
   adoptBtn.addEventListener('click', () => {
     if (!design.name.trim()) {
       design.name = '未命名'
       nameInput.value = design.name
       update()
+    }
+    if (techState) {
+      const gate = designCheck(design, techState)
+      if (!gate.ok) {
+        adoptNote.textContent = `当前科技造不出这辆车：${gate.reason}`
+        adoptNote.classList.add('bad')
+        return
+      }
     }
     const ok = writeAdopted(design)
     const year = designYear(design)
@@ -565,6 +604,7 @@ export function mountBureau(root: HTMLElement): void {
       { class: 'top-side' },
       el('div', { class: 'top-actions' }, adoptBtn, el('a', { class: 'adopt-link', href: './game.html' }, '去主循环 →')),
       adoptNote,
+      techNote,
       el(
         'p',
         { class: 'hint', text: '提示：先把首上倾角拉到 60°，再把厚度翻倍 —— 看看吨位和工时谁涨得快。' },
@@ -573,6 +613,13 @@ export function mountBureau(root: HTMLElement): void {
   )
 
   root.append(el('div', { class: 'bureau' }, header, el('main', { class: 'layout' }, slots, readout)))
+
+  window.addEventListener('focus', () => {
+    const latest = readTech()
+    if (latest && (!tech || latest.at !== tech.at)) {
+      techNote.textContent = '科技状态已更新：刷新页面后零件表才会跟着变。'
+    }
+  })
 
   update()
 
@@ -736,5 +783,18 @@ export function mountBureau(root: HTMLElement): void {
       ),
       el('div', { class: 'era-note', text: `对比池：${era.count} 辆该年代历史车（±6 年）` }),
     )
+
+    // 科技闸门：有主循环快照时，实时告诉玩家这辆车现在能不能造。
+    if (techState) {
+      const gate = designCheck(design, techState)
+      adoptBtn.disabled = !gate.ok
+      techNote.textContent = gate.ok
+        ? `科技：${tech!.year} 年 · ${Object.values(tech!.mastered).filter((v) => v > 0).length} 条已掌握`
+        : `当前科技造不出：${gate.reason}`
+      techNote.classList.toggle('bad', !gate.ok)
+    } else {
+      adoptBtn.disabled = false
+      techNote.textContent = '沙盒模式：全部零件可选；主循环会按科技闸门拒绝非法车。'
+    }
   }
 }

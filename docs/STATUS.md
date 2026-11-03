@@ -24,7 +24,7 @@
 
 **一句话：主循环能转、科技树能推、设计能卖；接下来是把「最小闭环」加厚成「真游戏」。**
 
-检查台现状：`npm run check` = 类型检查 + 10 个检查台，**253 项断言全绿**（见 §1.12）。
+检查台现状：`npm run check` = 类型检查 + 10 个检查台，**259 项断言全绿**（见 §1.12）。
 
 ---
 
@@ -109,7 +109,7 @@
 - 逾期单价 ×70%；现金 < 0 破产；交完自动重新招标
 - 产品按年代解锁（当前年份 + 2 年），换产品在下次接单时换型、熟练度 ×0.35
 
-**验证**：`npm run economy` → **42 项断言**；`npm run smoke:game` → **67 项断言**
+**验证**：`npm run economy` → **42 项断言**；`npm run smoke:game` → **68 项断言**
 
 ### 1.10 设计局 → 主循环 ✅
 
@@ -118,8 +118,10 @@
 - 年代闸门：`designYear = max(车体/炮/发动机/悬挂/辅助/材料年代)`，必须 ≤ 当前年份 + 2
 - 产品身份按制造参数比，不按名字：改名字不算换型，改参数才掉熟练度
 - 设计局加了型号名输入框；采用后给回执
+- **科技过滤**：主循环把科技快照（零件白名单 + 上限）写进 `tank-works.tech.v1`；设计局读快照过滤下拉、滑条上限和 pike，并在采用时挡非法设计
+- 没有快照时是沙盒模式（全部零件可选），方便单独打开设计局试车
 
-**验证**：`npm run smoke:tank` + `smoke:game` + `economy`（设计年代、超前拦截、导入后存档）
+**验证**：`npm run smoke:tank` + `smoke:game` + `economy` + `research`（设计年代、超前拦截、科技过滤、导入后存档）
 
 ### 1.11 研发局接进游戏 ✅
 
@@ -131,8 +133,9 @@
 - **性能闸门**：倾角默认 20° / 口径 57 / 倍径 30 / 装药 0.60 / pike；`designCheck()` 统一判断
 - 修正 `ammo.pen.1`：补 10 月 / ¥90k，前置接 `ammo.apcr.1`，整条弹芯梯子现在能研发
 - 科技完成会自动暂停，提示「选下一项」
+- 主循环把科技快照写进 `tank-works.tech.v1`，设计局据此过滤零件
 
-**验证**：`npm run research` → **32 项断言**；`npm run smoke:game` → 研发面板/开工/完成/存档
+**验证**：`npm run research` → **37 项断言**；`npm run smoke:game` → 研发面板/开工/完成/存档/科技快照
 
 ### 1.12 检查台
 
@@ -145,13 +148,13 @@
 | 弹道 | `npm run ballistics` | 19 辆车 + 8 条曲线 | ✅ |
 | 科技节奏 | `npm run tech` | 8 段 × 3 条门限 | ✅ |
 | 时钟 | `npm run clock` | 31 | ✅ |
-| 研发 | `npm run research` | 32 | ✅ |
+| 研发 | `npm run research` | 37 | ✅ |
 | 经济 | `npm run economy` | 42 | ✅ |
 | 设计局界面 | `npm run smoke:tank` | 33 | ✅ |
-| 游戏壳界面 | `npm run smoke:game` | 67 | ✅ |
+| 游戏壳界面 | `npm run smoke:game` | 68 | ✅ |
 | 研发局界面 | `npm run smoke:research` | 27 | ✅ |
 | 制造局界面 | `npm run smoke:mf` | 21 | ✅ |
-| **合计** | | **253 项断言** | |
+| **合计** | | **259 项断言** | |
 
 ---
 
@@ -189,7 +192,7 @@
 | # | 功能 | 说明 |
 |---|---|---|
 | 14 | 技术 `fn` 接进 `TUNING` | **接了一半**：解锁 / 倾角 / 口径 / 倍径 / 装药 / 工时已接进游戏；弹道系数（slopeExp / rangeKeep / heatPerCaliber / density / charge）还没进 `buildTank()` |
-| 15 | 解锁类技术过滤部件表 | 主循环已用 `designCheck()` 按零件年代与性能闸门拒绝非法车；**设计局界面仍铺全表**，要再走一道 localStorage 科技交接 |
+| 15 | 解锁类技术过滤部件表 | ✅ 主循环发科技快照，设计局按白名单过滤下拉/滑条/pike，并在采用时挡非法设计 |
 | 16 | 产线升级（降工时 / 工时费） | 多线并行与「新建产线」已经做了（制造局页）；**升级产线**还没有（原始需求里有） |
 | 17 | 战争中的订单潮 | 用威胁水位驱动订单量与验收放宽 |
 | 18 | 训练 / 熟练度状态 | 换型掉 35% 是拍脑袋的，应该由「工人经验」推 |
@@ -218,7 +221,7 @@
 | T1 | **技术 `fn` 只接了一半** | 解锁 / 倾角 / 口径 / 倍径 / 装药 / 工时已接；`build.ts` 仍直接用 `TUNING` 的弹道表 | 弹道系数还没按研发结果改，APDS/APFSDS 的穿深仍和科技无关（P2-14） |
 | T2 | **抗破（CE）只算不判** | `armor.ts` 算出 `hullCe / turretCe`，`build.ts` 只把 `hull / turret / side` 带进 `Tank` | 评分、界面、击穿判定都没有抗破；复合装甲的 `ce` 优势等于不存在（P2-21） |
 | T3 | **破甲弹拿 KE 等效判定** | 设计局自检把 2km 视线穿深与 `armorFront`（抗穿）比 | 若将来接订单，破甲弹会按「均质钢」逻辑打复合装甲，需要改成 CE 口径 |
-| T4 | **部件全解锁** | 设计局下拉直接铺全表；主循环按 `designYear`（零件最晚年代）拦成交 | 开局就能选 NERA / 滑膛炮来设计；想卖得等年份。真正的科技过滤是 P2-15 |
+| T4 | **部件全解锁** | ✅ 主循环发科技快照，设计局按白名单收窄；单独打开设计局（无快照）仍是沙盒 | 想卖车必须走主循环的科技状态，P2-15 已完成 |
 | T5 | **`ammo.pen.1` 已修** | ✅ 补 10 月 / ¥90k，前置接 `ammo.apcr.1`；`tech-budget` 现在 34 条开局、需求 3,500、二战 101% | 节奏表与文档已同步 |
 | T6 | **多线混产回款算错（制造局试算页）** | `manufacture.ts` 用 `factory.lines[0]` 的单价 × 全部产量 | 主循环是单线，暂时踩不到；多线版本要按线计价 |
 | T7 | **升级维护费未接线** | `SLOT_UPGRADES / SPEED_UPGRADES` 的 `upkeep` 字段没人读；`research.ts` 只算 `3,500 × 通胀 × 槽数` | 扩张成本被低估；DESIGN §7.6 已注明 |
@@ -292,7 +295,7 @@
 npm run dev            # 四个页面，127.0.0.1:5273
 npm run build          # 类型检查 + 打包到 dist/（相对路径，可 file:// 打开）
 npm run preview        # 本地预览打包结果
-npm run check          # 253 项断言的完整回归，提交前跑这个
+npm run check          # 259 项断言的完整回归，提交前跑这个
 
 # 单个检查台
 npm run design         # 19 辆历史车校准
@@ -354,7 +357,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `GameState` v3 新增 `design` / `factory` / `contract` / `offers`；`STATE_VERSION` 2 → 3
 - `save.ts` 清洗产品 / 产线 / 订单 / 招标；v1、v2 老存档可读
 - 游戏壳：产品下拉（按年代解锁）、三档招标卡、订单进度、产线状态、回款
-- `tools/economy-bench.ts`（M1 时 38 项，现 42 项）+ `economy` 脚本；`smoke:game` 扩到 67 项
+- `tools/economy-bench.ts`（M1 时 38 项，现 42 项）+ `economy` 脚本；`smoke:game` 扩到 68 项
 
 **规则（M1）**：
 
@@ -365,7 +368,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **M1 简化（待替换）**：空档期不烧维持费；换型即时免费；单产线、单客户类型；无贷款 / 信誉 / 竞品 / 贿赂 / 结算总表。
 
-**验证**：`npm run check` → 253 项断言；`npm run economy` → 42 项；`npm run smoke:game` → 67 项。
+**验证**：`npm run check` → 259 项断言；`npm run economy` → 42 项；`npm run smoke:game` → 68 项。
 
 ---
 
@@ -380,7 +383,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 数据修正：`ww2_simple` 年代 1944 → 1941（否则 T-34/76 会被判成超前 3 年，见 `data/parts.ts`）
 - 年代闸门：`designYear ≤ 当前年份 + 2`，同时在 `acceptOffer` 里兜底，防止绕过 UI
 
-**验证**：`npm run check` → 253 项；`smoke:tank` 33；`smoke:game` 67；`economy` 42。
+**验证**：`npm run check` → 259 项；`smoke:tank` 33；`smoke:game` 68；`economy` 42。
 
 ---
 
@@ -391,6 +394,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `src/tank/sim/research.ts` —— 研发项目、槽位/速度、零件闸门、性能上限
 - `GameState.research`：`mastered` / `projects` / `upgrades`；`STATE_VERSION` 3 → 4，v3 存档可读
 - 游戏壳「研发」面板：在研进度、可开工技术下拉、槽位/速度购买、科技完成自动暂停
+- 科技快照：主循环把 `parts` 白名单 + `limits` 写进 `tank-works.tech.v1`；设计局据此过滤下拉、倾角上限和 pike
 - 存档清洗：已掌握技术只接受 `TECH_BY_ID` 里存在的梯子/世代，在研项目与升级逐项校验
 - 数据修正：`ammo.pen.1` 补 10 月 / ¥90k，前置接 `ammo.apcr.1`；节奏表变为 34 条开局 / 3,500 槽月 / 二战 101%
 
@@ -400,6 +404,6 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 零件闸门：`part.era ≤ boardYear + 2`，`boardYear = max(该板块已掌握代的 year, 1915)`
 - 性能闸门：倾角 20° / 口径 57 / 倍径 30 / 装药 0.60 / pike，全在 `designCheck()`
 
-**还没做**：弹道 `fn` 系数、设计局界面按科技过滤（P2-14 / P2-15 的后半）。
+**还没做**：弹道 `fn` 系数（P2-14 后半）；设计局没有科技快照时降级为沙盒。
 
-**验证**：`npm run check` → 253 项；`research` 32；`smoke:game` 67。
+**验证**：`npm run check` → 259 项；`research` 37；`smoke:game` 68。

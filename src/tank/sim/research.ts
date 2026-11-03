@@ -23,7 +23,7 @@ import {
   type TechBoard,
   type TechTier,
 } from '../data/tech'
-import { AUX_BY_ID, ENGINE_BY_ID, GUN_BY_ID, HULL_BY_ID, MATERIAL_BY_ID, SUSPENSION_BY_ID } from '../data/parts'
+import { AUX_BY_ID, ARMOR_MATERIALS, AUXES, ENGINES, ENGINE_BY_ID, GUNS, GUN_BY_ID, HULLS, HULL_BY_ID, MATERIAL_BY_ID, SUSPENSION_BY_ID, SUSPENSIONS } from '../data/parts'
 import { dateOf } from './calendar'
 import { pushLog, type GameState, type ResearchState } from './state'
 import type { TankDesign } from '../types'
@@ -312,8 +312,52 @@ export function advanceResearch(state: GameState, day: number, days: number): Re
   return out
 }
 
-/** 买槽位 / 速度升级。id 是 `slot-1934` 这种。 */
-export function buyResearchUpgrade(state: GameState, id: string): ActionResult {
+/**
+ * 给设计局的科技快照：哪些零件能选、上限是多少。
+ * 设计局是独立页面，只能通过 localStorage 拿到这份快照。
+ */
+export interface TechSnapshot {
+  at: number
+  /** 快照对应的游戏年份（给界面看） */
+  year: number
+  mastered: Record<string, number>
+  limits: TechLimits
+  parts: {
+    hull: string[]
+    material: string[]
+    gun: string[]
+    engine: string[]
+    suspension: string[]
+    aux: string[]
+  }
+}
+
+export function techSnapshot(state: GameState): TechSnapshot {
+  const r = state.research
+  const limits = techLimits(r)
+  return {
+    at: Date.now(),
+    year: dateOf(state.day).year,
+    mastered: { ...r.mastered },
+    limits,
+    parts: {
+      hull: HULLS.filter((h) => partAvailable(h.era, 'armor', r)).map((h) => h.id),
+      material: ARMOR_MATERIALS.filter((m) => partAvailable(m.era, 'armor', r)).map((m) => m.id),
+      gun: GUNS.filter(
+        (g) =>
+          partAvailable(g.era, 'gun', r) &&
+          g.caliber <= limits.caliberMax &&
+          g.barrelCalibers <= limits.barrelMax &&
+          g.charge <= limits.chargeMax,
+      ).map((g) => g.id),
+      engine: ENGINES.filter((e) => partAvailable(e.era, 'power', r)).map((e) => e.id),
+      suspension: SUSPENSIONS.filter((s) => partAvailable(s.era, 'run', r)).map((s) => s.id),
+      aux: AUXES.filter((a) => partAvailable(a.era, 'aux', r)).map((a) => a.id),
+    },
+  }
+}
+
+/** 买槽位 / 速度升级。id 是 `slot-1934` 这种。 */export function buyResearchUpgrade(state: GameState, id: string): ActionResult {
   if (state.over) return { ok: false, msg: '这一局已经结束' }
   const entry = upgradeById(id)
   if (!entry) return { ok: false, msg: '没有这个升级' }

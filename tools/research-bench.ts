@@ -9,7 +9,7 @@
  */
 
 import { dayOf } from '../src/tank/sim/calendar'
-import { advanceResearch, availableTechs, buyResearchUpgrade, designCheck, effortForTier, monthlyUpkeep, slotsOf, speedOf, startResearch } from '../src/tank/sim/research'
+import { advanceResearch, availableTechs, buyResearchUpgrade, designCheck, effortForTier, monthlyUpkeep, slotsOf, speedOf, startResearch, techSnapshot } from '../src/tank/sim/research'
 import { STARTING_TECH, TECH_BY_ID } from '../src/tank/data/tech'
 import { HISTORICAL } from '../src/tank/data/historical'
 import { createGame } from '../src/tank/sim/state'
@@ -75,6 +75,14 @@ const steep = JSON.parse(JSON.stringify(ft.design)) as typeof ft.design
 steep.armor.frontSlope = 60
 const steepCheck = designCheck(steep, g.research)
 check('60° 倾角被上限挡住', !steepCheck.ok && steepCheck.reason.includes('上限'), steepCheck.reason)
+
+// ── 4b. 给设计局的科技快照 ────────────────────────────────
+const snap0 = techSnapshot(createGame(4))
+check('快照只放已解锁车体', snap0.parts.hull.includes('ft') && !snap0.parts.hull.includes('tiger2'))
+check('快照限制倾角 20°', snap0.limits.slopeMax === 20)
+check('快照不放大口径炮', !snap0.parts.gun.includes('kwk43'))
+check('快照不放复合装甲', !snap0.parts.material.includes('nera'))
+check('研发后 A7V 车体进快照', techSnapshot(g).parts.hull.includes('a7v'))
 
 // ── 5. 升级：槽位 / 速度 ──────────────────────────────────
 g.day = dayOf(1934, 1, 1)
