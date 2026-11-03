@@ -60,7 +60,7 @@ const SPEEDS = [1, 3, 10, 30] as const
 const RENDER_INTERVAL_MS = 70
 const FEED_LIMIT = 60
 
-type PauseReason = 'manual' | 'event' | 'contract' | 'research' | 'ended'
+type PauseReason = 'manual' | 'event' | 'contract' | 'research' | 'cash' | 'deadline' | 'ended'
 
 export interface GameOptions {
   storage: SaveStore
@@ -128,6 +128,8 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   let candidateSig = ''
   let techSig = ''
   let lineSig = ''
+  let cashWarned = false
+  let deadlineWarned = false
   /** 产品下拉里是否挂着「本厂设计」那个选项 */
   let hasCustom = false
   let flashUntil = 0
@@ -320,6 +322,8 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     paused = false
     pauseReason = 'manual'
     acc = 0
+    cashWarned = false
+    deadlineWarned = false
     offerSig = ''
     dirty = true
     render()
@@ -780,6 +784,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
             el('span', { class: 'offer-qty', text: `${o.qty} 台` }),
           ),
           el('div', { class: 'offer-need', text: needText(o) }),
+          el('div', { class: 'offer-force', text: `${o.nation}现役：${o.ref} · 需求 ${o.qty} 台` }),
           el(
             'div',
             { class: 'offer-meta' },
@@ -920,9 +925,13 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
         ? '订单完成 · 接下一单'
         : pauseReason === 'research'
           ? '科技完成 · 选下一项'
-          : pauseReason === 'event'
-            ? '自动暂停 · 世界变了'
-            : '已暂停'
+          : pauseReason === 'cash'
+            ? '现金告急 · 先看账'
+            : pauseReason === 'deadline'
+              ? '交期临近 · 5 天'
+              : pauseReason === 'event'
+                ? '自动暂停 · 世界变了'
+                : '已暂停'
     pausedTag.classList.toggle('show', paused && !state.over)
 
     renderProduct()
@@ -1000,6 +1009,16 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
           pauseReason = 'research'
           if (state.log.length > sizeBefore) showFlash(state.log[state.log.length - 1]!)
           publishTech()
+        } else if (state.contract && !cashWarned && state.cash < 50_000) {
+          paused = true
+          pauseReason = 'cash'
+          cashWarned = true
+          showFlash({ d: state.day, k: 'note', t: '现金告急：不到 5 万，先看看账。' })
+        } else if (state.contract && !deadlineWarned && state.contract.deadline - state.day <= 5) {
+          paused = true
+          pauseReason = 'deadline'
+          deadlineWarned = true
+          showFlash({ d: state.day, k: 'note', t: '交期只剩 5 天，确认还能交上。' })
         } else if (r.eraChanged || r.newsCount > 0) {
           paused = true
           pauseReason = 'event'

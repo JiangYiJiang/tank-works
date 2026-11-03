@@ -421,6 +421,12 @@ body {
   line-height: 1.5;
 }
 
+.offer-force {
+  margin-top: 2px;
+  color: var(--faint);
+  font-size: 10px;
+}
+
 .offer-meta {
   display: flex;
   justify-content: space-between;

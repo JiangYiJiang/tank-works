@@ -70,6 +70,7 @@ check('小单是 4 台', txt(root, '.offer-qty').includes('4 台'), txt(root, '.
 check('每份标都有竞品', all(root, '.offer-rival').length === 3, `实际 ${all(root, '.offer-rival').length}`)
 check('有压价与贿赂按钮', all(root, '.chip-undercut').length === 3 && all(root, '.chip-bribe').length === 3)
 check('厂子面板显示信誉', root.textContent!.includes('信誉'))
+check('标上显示客户现役', all(root, '.offer-force').length === 3 && txt(root, '.offer-force').includes('现役'))
 check('开局国家是法国', (q(root, '.home-select') as HTMLSelectElement).value === 'fra')
 check('开局国家可选', (q(root, '.home-select') as HTMLSelectElement).disabled === false)
 
