@@ -17,6 +17,7 @@ import { designYear } from '../model/era'
 import { designCheck, techMods } from './research'
 import { HISTORICAL } from '../data/historical'
 import { customersFor } from '../data/nations'
+import { specForGame } from './lines'
 import { TOTAL_DAYS, dateOf, formatDate } from './calendar'
 import {
   RETOOL_KEEP,
@@ -25,7 +26,6 @@ import {
   createFactory,
   inTransitKg,
   orderMaterial,
-  specOf,
   stockOf,
   type LineSpec,
   type ProductionLine,
@@ -248,7 +248,7 @@ export function acceptOffer(state: GameState, offerId: string, mode: BidMode = '
     }
   }
 
-  const spec = specOf(tank)
+  const spec = specForGame(state)
   const oneUnitMaterial = spec.unitKg * spec.yuanPerKg
   if (state.cash < oneUnitMaterial + (mode === 'bribe' ? offer.bribeCost : 0)) {
     return { ok: false, msg: '现金不够买一台车的料' }
@@ -268,32 +268,39 @@ export function acceptOffer(state: GameState, offerId: string, mode: BidMode = '
   const unitPrice = bidPrice(offer, state.rep, mode)
 
   if (!state.factory) state.factory = createFactory()
-  let line = state.factory.lines[0]
-  if (!line) {
-    line = addLine(state.factory, spec, START_WORKERS, START_SHIFTS)
-  } else if (!sameSpec(line.spec, spec)) {
-    line.spec = spec
-    line.built = Math.floor(line.built * RETOOL_KEEP)
-    line.progress = 0
-    // 旧型号的成品不能算到新客户头上，直接清掉（M1 简化）。
-    state.factory.finished = 0
-    pushLog(state, {
-      d: state.day,
-      k: 'build',
-      t: `换型到 ${spec.tank}：熟练度按 ${Math.round(RETOOL_KEEP * 100)}% 保留（M1 不收换型费、不占停机）。`,
-    })
-  } else if (line.spec.tank !== spec.tank) {
-    // 只改了名字、参数没动：不算换型，只更新标签。
-    line.spec.tank = spec.tank
+  if (state.factory.lines.length === 0) {
+    addLine(state.factory, spec, START_WORKERS, START_SHIFTS)
+  } else {
+    // 所有产线都换到当前产品；参数没变就只更新标签。
+    let changed = false
+    for (const line of state.factory.lines) {
+      if (!sameSpec(line.spec, spec)) {
+        line.spec = spec
+        line.built = Math.floor(line.built * RETOOL_KEEP)
+        line.progress = 0
+        changed = true
+      } else if (line.spec.tank !== spec.tank) {
+        line.spec.tank = spec.tank
+      }
+      line.state = 'running'
+    }
+    if (changed) {
+      state.factory.finished = 0
+      pushLog(state, {
+        d: state.day,
+        k: 'build',
+        t: `换型到 ${spec.tank}：全部产线熟练度按 ${Math.round(RETOOL_KEEP * 100)}% 保留（不收换型费、不占停机）。`,
+      })
+    }
   }
-  line.state = 'running'
+  for (const l of state.factory.lines) l.state = 'running'
   state.contract = { ...offer, unitPrice, delivered: 0, acceptedDay: state.day, late: false, paid: 0 }
   state.offers = []
 
   // 首批备料：最多花掉 60% 现金，至少一台。
   const affordable = Math.floor((state.cash * 0.6) / oneUnitMaterial)
   const units = Math.max(1, Math.min(offer.qty, affordable))
-  buyImmediate(state, line, units)
+  buyImmediate(state, state.factory.lines[0]!, units)
 
   pushLog(state, {
     d: state.day,
@@ -355,8 +362,9 @@ function ensureStock(state: GameState, line: ProductionLine, day: number): void 
   const uncovered = c.qty - c.delivered - f.finished - covered
   // 首批备料已经够交完这一单：不要再买，免得把现金压在仓库里。
   if (uncovered <= 0) return
-  if (have >= line.spec.unitKg * LOW_WATER_UNITS) return
-  const units = Math.min(TOPUP_UNITS, Math.ceil(uncovered))
+  const lines = Math.max(1, f.lines.length)
+  if (have >= line.spec.unitKg * LOW_WATER_UNITS * lines) return
+  const units = Math.min(TOPUP_UNITS * lines, Math.ceil(uncovered))
   const kg = Math.round(line.spec.unitKg * units)
   const price = Math.round(kg * line.spec.yuanPerKg)
   // 留一半现金发工资
@@ -427,7 +435,7 @@ export function economyDay(state: GameState, day: number): EconomyTick {
     state.rep = clampRep(state.rep + (c.late ? -5 : 2))
     state.stats.contracts++
     state.contract = null
-    if (line.state === 'running') line.state = 'idle'
+    for (const l of f.lines) if (l.state === 'running') l.state = 'idle'
     out.contractDone = true
     refreshOffers(state, true, day)
   }

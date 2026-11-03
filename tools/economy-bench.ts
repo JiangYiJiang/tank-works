@@ -16,6 +16,8 @@ import { HISTORICAL } from '../src/tank/data/historical'
 import { blocOf, customerAllowed } from '../src/tank/data/nations'
 import { decodeSave, encodeSave } from '../src/tank/sim/save'
 import { borrow, creditLimit, repay } from '../src/tank/sim/loan'
+import { LINE_COST, MAX_LINES, addProductionLine, upgradeLine } from '../src/tank/sim/lines'
+import { materialFactor } from '../src/tank/sim/market'
 
 let pass = 0
 let fail = 0
@@ -130,6 +132,41 @@ auto.cash = -100
 const autoRes = advanceDays(auto, 1)
 check('现金见底先自动透支', !auto.over && auto.cash >= 0 && auto.debt > 0, `${auto.cash} / ${auto.debt}`)
 check('自动透支有日志', auto.log.some((l) => l.t.includes('自动透支')))
+
+// ── 4c. 多产线 / 扩编 / 加班 / 料价 ───────────────────────
+const multi = createGame(81)
+refreshOffers(multi)
+acceptOffer(multi, multi.offers[0]!.id)
+const cashMulti = multi.cash
+const firstLine = multi.factory!.lines[0]!
+const addLine = addProductionLine(multi)
+check('能加第二条产线', addLine.ok && multi.factory!.lines.length === 2, addLine.msg)
+check('加线扣建设费', multi.cash <= cashMulti - LINE_COST, String(cashMulti - multi.cash))
+const secondLine = multi.factory!.lines[1]!
+check('新线 100 人 1 班', secondLine.workers === 100 && secondLine.shifts === 1)
+const staffUp = upgradeLine(multi, secondLine.id, 'staff')
+check('扩编加 100 人', staffUp.ok && secondLine.workers === 200, staffUp.msg)
+const shiftUp = upgradeLine(multi, secondLine.id, 'shift')
+check('加班到 2 班', shiftUp.ok && secondLine.shifts === 2, shiftUp.msg)
+check('加到第三条线', addProductionLine(multi).ok && multi.factory!.lines.length === 3)
+check('第四条线被拒', !addProductionLine(multi).ok)
+check('第一条线仍是 200 人', firstLine.workers === 200)
+
+const f0 = materialFactor('rha', 0)
+check('料价系数在 0.82–1.25', f0 >= 0.82 && f0 <= 1.25, String(f0))
+check('同一天同材质料价固定', materialFactor('rha', 0) === f0)
+check('不同天料价会变', materialFactor('rha', 0) !== materialFactor('rha', 3650), `${f0} / ${materialFactor('rha', 3650)}`)
+
+// 同样 10 天，三条线应该比一条线出得多（用 16 台的大单，避免提前交完）
+function runLines(n: number): number {
+  const s = createGame(83)
+  refreshOffers(s)
+  acceptOffer(s, s.offers.find((o) => o.qty === 16)!.id)
+  for (let i = 1; i < n; i++) addProductionLine(s)
+  advanceDays(s, 10)
+  return s.factory?.produced ?? 0
+}
+check('三条线出车更快', runLines(3) > runLines(1), `${runLines(3)} vs ${runLines(1)}`)
 
 // ── 5. 逾期：同样一局，逾期结算拿得更少 ────────────────────
 function runOrder(seed: number, lateBy: number): GameState {

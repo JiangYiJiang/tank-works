@@ -489,6 +489,65 @@ body {
   font-size: 11px;
 }
 
+.material-note {
+  color: var(--faint);
+  font-size: 10.5px;
+  margin-bottom: 7px;
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.line-card {
+  padding: 7px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  background: var(--panel-2);
+}
+
+.line-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.line-state {
+  color: var(--up);
+  font-size: 10px;
+}
+
+.line-meta {
+  margin-top: 3px;
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.line-actions {
+  display: flex;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.chip-line {
+  flex: 1;
+  padding: 3px 5px;
+  color: var(--cyan);
+  border-color: #1f3a40;
+  font-size: 9.5px;
+}
+
+.chip-addline {
+  width: 100%;
+  margin-top: 7px;
+  color: var(--amber);
+  border-color: #45361f;
+  font-size: 10.5px;
+}
+
 /* ── 关厂报告 ─────────────────────────────────────────── */
 
 .end-overlay {

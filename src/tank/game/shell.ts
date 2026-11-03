@@ -32,6 +32,17 @@ import { buildTank } from '../model/build'
 import { designYear } from '../model/era'
 import { daysPerUnit, inTransitKg, stockOf } from '../sim/factory'
 import { LOAN_STEP, availableCredit, borrow, creditLimit, repay } from '../sim/loan'
+import {
+  LINE_COST,
+  MAX_LINES,
+  SHIFT_COST,
+  STAFF_COST,
+  STAFF_MAX,
+  STAFF_STEP,
+  addProductionLine,
+  upgradeLine,
+} from '../sim/lines'
+import { materialFactorText } from '../sim/market'
 import { readAdopted } from '../../platform/design-handoff'
 import { writeTech } from '../../platform/tech-handoff'
 import type { SaveStore } from '../../platform/storage'
@@ -116,6 +127,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   let offerSig = ''
   let candidateSig = ''
   let techSig = ''
+  let lineSig = ''
   /** 产品下拉里是否挂着「本厂设计」那个选项 */
   let hasCustom = false
   let flashUntil = 0
@@ -161,6 +173,18 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   const borrowBtn = el('button', { class: 'chip chip-bank', type: 'button', text: '借 50 万' })
   const repayBtn = el('button', { class: 'chip chip-bank', type: 'button', text: '还 50 万' })
   const bankRow = el('div', { class: 'bank-row' }, borrowBtn, repayBtn)
+
+  const materialNote = el('div', { class: 'material-note' })
+  const linesWrap = el('div', { class: 'lines' })
+  const addLineBtn = el('button', { class: 'chip chip-addline', type: 'button', text: `加一条产线 ${money(LINE_COST)}` })
+  const linesPanel = el(
+    'section',
+    { class: 'panel' },
+    el('h2', { text: '产线' }),
+    materialNote,
+    linesWrap,
+    addLineBtn,
+  )
   const leftValue = el('span', { class: 'kv-num' })
   const productSelect = el('select', { class: 'sel product-select' })
   const productStats = el('div', { class: 'mini-grid' })
@@ -215,6 +239,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       adoptRow,
     ),
     el('section', { class: 'panel' }, el('h2', { text: '订单' }), offersWrap, contractWrap),
+    linesPanel,
     researchPanel,
     el(
       'section',
@@ -351,6 +376,17 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     adoptBtn.disabled = state.contract !== null
     adoptNote.textContent = `${a.design.name} · ${designYear(a.design)} 年`
   }
+
+  addLineBtn.addEventListener('click', () => {
+    const r = addProductionLine(state)
+    if (!r.ok) {
+      showFlash({ d: state.day, k: 'note', t: r.msg })
+      return
+    }
+    lineSig = ''
+    render()
+    save()
+  })
 
   borrowBtn.addEventListener('click', () => {
     const r = borrow(state, LOAN_STEP)
@@ -573,6 +609,65 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     }`
   }
 
+  function renderLines(): void {
+    const f = state.factory
+    const lines = f?.lines ?? []
+    const material = lines[0]?.spec.material ?? state.design.armor.material
+    materialNote.textContent = `${materialFactorText(material, state.day)} · 接单时锁价`
+    const sig = `${lines
+      .map((l) => `${l.id}:${l.workers}:${l.shifts}:${l.state}:${l.built}:${l.starved}`)
+      .join('|')}|${state.cash >= LINE_COST}|${state.cash >= STAFF_COST}|${state.cash >= SHIFT_COST}|${state.over}`
+    if (sig === lineSig) return
+    lineSig = sig
+
+    linesWrap.replaceChildren()
+    if (lines.length === 0) {
+      linesWrap.append(el('p', { class: 'hintline', text: '还没有产线；接单时自动建第一条。' }))
+    }
+    for (const l of lines) {
+      const stateText = l.state === 'running' ? '运转' : l.state === 'retooling' ? '换型' : '停工'
+      const staffBtn = el('button', { class: 'chip chip-line', type: 'button', text: `+100 人 ${money(STAFF_COST)}` })
+      staffBtn.disabled = state.over || l.workers + STAFF_STEP > STAFF_MAX || state.cash < STAFF_COST
+      staffBtn.addEventListener('click', () => {
+        const r = upgradeLine(state, l.id, 'staff')
+        if (!r.ok) {
+          showFlash({ d: state.day, k: 'note', t: r.msg })
+          return
+        }
+        lineSig = ''
+        render()
+        save()
+      })
+      const shiftBtn = el('button', { class: 'chip chip-line', type: 'button', text: `+1 班 ${money(SHIFT_COST)}` })
+      shiftBtn.disabled = state.over || l.shifts >= 3 || state.cash < SHIFT_COST
+      shiftBtn.addEventListener('click', () => {
+        const r = upgradeLine(state, l.id, 'shift')
+        if (!r.ok) {
+          showFlash({ d: state.day, k: 'note', t: r.msg })
+          return
+        }
+        lineSig = ''
+        render()
+        save()
+      })
+      linesWrap.append(
+        el(
+          'div',
+          { class: 'line-card' },
+          el(
+            'div',
+            { class: 'line-top' },
+            el('span', { text: `${l.id} 号线 · ${l.workers} 人 × ${l.shifts} 班` }),
+            el('span', { class: 'line-state', text: stateText }),
+          ),
+          el('div', { class: 'line-meta', text: `已造 ${l.built} 台${l.starved > 0 ? ' · 缺料停线' : ''}` }),
+          el('div', { class: 'line-actions' }, staffBtn, shiftBtn),
+        ),
+      )
+    }
+    addLineBtn.disabled = state.over || lines.length >= MAX_LINES || state.cash < LINE_COST
+  }
+
   function renderProduct(): void {
     const candidates = productCandidates(state.day, state.research)
     const sig = candidates.map((c) => c.design.name).join('|')
@@ -699,13 +794,21 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   }
 
   function renderContract(c: NonNullable<GameState['contract']>): void {
-    const line = state.factory?.lines[0]
+    const lines = state.factory?.lines ?? []
+    const line = lines[0]
     const pct = Math.min(100, (c.delivered / Math.max(1, c.qty)) * 100)
     const meterFill = el('div', { class: 'meter-fill' })
     meterFill.style.width = `${pct.toFixed(1)}%`
     const late = state.day > c.deadline
     const due = late ? `已逾期 ${state.day - c.deadline} 天` : `还剩 ${c.deadline - state.day} 天`
-    const status = !line ? '没有产线' : line.starved > 0 ? '缺料停线' : line.state === 'running' ? '运转中' : '停工'
+    const status =
+      lines.length === 0
+        ? '没有产线'
+        : lines.some((l) => l.starved > 0)
+          ? '缺料停线'
+          : lines.some((l) => l.state === 'running')
+            ? '运转中'
+            : '停工'
     const per = line ? daysPerUnit(line) : Infinity
     const materialDays =
       line && state.factory
@@ -735,7 +838,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       el(
         'div',
         { class: 'contract-line dim' },
-        el('span', { text: `产线 ${status}` }),
+        el('span', { text: `产线 ${lines.length} 条 · ${status}` }),
         el('span', { text: line ? `单台 ${per.toFixed(1)} 天 · 料够 ${materialDays.toFixed(1)} 天` : '—' }),
       ),
     )
@@ -824,6 +927,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
 
     renderProduct()
     renderOrders()
+    renderLines()
     renderResearch()
     renderEnd()
 

@@ -225,6 +225,18 @@ check('关厂报告自动出现', q(root14, '.end-overlay')?.classList.contains(
 check('报告里有关厂标题', txt(root14, '.end-title').includes('关厂报告'), txt(root14, '.end-title'))
 check('报告里有净资产 / 回款', root14.textContent!.includes('净资产') && root14.textContent!.includes('累计回款'))
 
+// ── 2e. 多产线 / 扩编 / 料价 ─────────────────────────────
+const store15 = createMemoryStorage()
+const root15 = mount(store15, 51)
+check('开局没有产线', all(root15, '.line-card').length === 0)
+check('料价提示在', txt(root15, '.material-note').includes('料价'), txt(root15, '.material-note'))
+const cash15 = cashOf(root15)
+q(root15, '.chip-addline')!.dispatchEvent(new win.Event('click') as unknown as Event)
+check('加线后出现 1 条产线', all(root15, '.line-card').length === 1, `实际 ${all(root15, '.line-card').length}`)
+check('加线扣了 30 万', cashOf(root15) <= cash15 - 300_000, `${cash15} → ${cashOf(root15)}`)
+q(root15, '.chip-line')!.dispatchEvent(new win.Event('click') as unknown as Event)
+check('扩编后是 200 人', root15.textContent!.includes('200 人 × 1 班'), txt(root15, '.line-card'))
+
 // ── 2c. 游说：贿赂 / 压价 ────────────────────────────────
 const store9 = createMemoryStorage()
 const root9 = mount(store9, 21)
@@ -252,7 +264,7 @@ check('接单后出现订单面板', (q(root3, '.contract')?.textContent ?? '').
 check('接单后招标列表清空', all(root3, '.offer').length === 0)
 check('接单后备料花钱', cashOf(root3) < cash0, `${cash0} → ${cashOf(root3)}`)
 check('订单执行中不能换产品', (q(root3, '.product-select') as HTMLSelectElement).disabled === true)
-check('产线在运转', root3.textContent!.includes('产线 运转中'))
+check('产线在运转', root3.textContent!.includes('产线 1 条 · 运转中'), txt(root3, '.contract-line'))
 
 const raw3 = store3.read('tank-works.save.v7')
 const saved3 = raw3 ? JSON.parse(raw3) : null
