@@ -27,6 +27,7 @@ import {
   techSnapshot,
 } from '../sim/research'
 import { SLOT_UPGRADES, SPEED_UPGRADES, TECH_BY_ID } from '../data/tech'
+import { NATIONS } from '../data/nations'
 import { buildTank } from '../model/build'
 import { designYear } from '../model/era'
 import { daysPerUnit, inTransitKg, stockOf } from '../sim/factory'
@@ -34,9 +35,9 @@ import { readAdopted } from '../../platform/design-handoff'
 import { writeTech } from '../../platform/tech-handoff'
 import type { SaveStore } from '../../platform/storage'
 
-const SAVE_KEY = 'tank-works.save.v5'
-/** 旧版本存档：v4 有研发，v3 只有产品/订单，v2 只有日期与现金。读回来继续用。 */
-const LEGACY_SAVE_KEYS = ['tank-works.save.v4', 'tank-works.save.v3', 'tank-works.save.v2'] as const
+const SAVE_KEY = 'tank-works.save.v6'
+/** 旧版本存档：v5 有信誉/贿赂，v4 有研发，v3 只有产品/订单，v2 只有日期与现金。 */
+const LEGACY_SAVE_KEYS = ['tank-works.save.v5', 'tank-works.save.v4', 'tank-works.save.v3', 'tank-works.save.v2'] as const
 const SPEEDS = [1, 3, 10, 30] as const
 const RENDER_INTERVAL_MS = 70
 const FEED_LIMIT = 60
@@ -146,8 +147,11 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
 
   const cashValue = el('span', { class: 'kv-num cash-value' })
   const repValue = el('span', { class: 'kv-num' })
+  const homeSelect = el('select', { class: 'sel home-select' })
+  for (const n of NATIONS) homeSelect.append(el('option', { value: n.id, text: n.name }))
+  homeSelect.value = state.home
   const leftValue = el('span', { class: 'kv-num' })
-  const productSelect = el('select', { class: 'sel' })
+  const productSelect = el('select', { class: 'sel product-select' })
   const productStats = el('div', { class: 'mini-grid' })
   const productHint = el('p', { class: 'hintline' })
   const adoptBtn = el('button', { class: 'chip chip-adopt', type: 'button' }, '导入设计局的车')
@@ -190,6 +194,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       el('h2', { text: '厂子' }),
       el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '现金' }), cashValue),
       el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '信誉' }), repValue),
+      el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '国家' }), homeSelect),
       el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '剩余' }), leftValue),
       el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '产品' }), productSelect),
       productStats,
@@ -318,6 +323,19 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     adoptBtn.disabled = state.contract !== null
     adoptNote.textContent = `${a.design.name} · ${designYear(a.design)} 年`
   }
+
+  homeSelect.addEventListener('change', () => {
+    if (state.day !== 0 || state.factory || state.contract) {
+      homeSelect.value = state.home
+      showFlash({ d: state.day, k: 'note', t: '开工之后不能改国籍；下一局再选。' })
+      return
+    }
+    state.home = homeSelect.value
+    refreshOffers(state, true)
+    offerSig = ''
+    render()
+    save()
+  })
 
   techSelect.addEventListener('change', updateTechHint)
 
@@ -689,6 +707,9 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
 
     cashValue.textContent = money(state.cash)
     repValue.textContent = `${state.rep} / 100${state.bribes > 0 ? ` · 未消账 ${state.bribes}` : ''}`
+    homeSelect.value = state.home
+    homeSelect.disabled = state.day !== 0 || state.factory !== null || state.contract !== null
+    homeSelect.title = homeSelect.disabled ? '开工之后不能改国籍' : '换国家会按新阵营重新招标'
     leftValue.textContent = state.over ? '—' : `${num(daysLeft(state))} 天`
 
     const threat = threatAt(state.day)

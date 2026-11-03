@@ -9,6 +9,7 @@
  * v3 起，存档开始装「玩家真正做出来的东西」：当前产品、产线、订单、在手合同。
  * v4 再加研发：已掌握的技术世代、在研项目、买过的槽位/速度升级。
  * v5 再加信誉与贿赂账，招标自带竞品报价。
+ * v6 再加玩家国家，客户按阵营限制。
  * 这些都是玩家动作的结果，重算不出来，必须存。
  */
 
@@ -18,7 +19,7 @@ import { STARTING_TECH } from '../data/tech'
 import type { RawDims, TankDesign } from '../types'
 import type { FactoryState } from './factory'
 
-export const STATE_VERSION = 5
+export const STATE_VERSION = 6
 
 /** 日志最多留这么多条。够看，又不会让存档随游戏时间一起涨。 */
 export const LOG_CAP = 160
@@ -131,6 +132,8 @@ export interface GameState {
   rep: number
   /** 还没被查的贿赂次数 */
   bribes: number
+  /** 玩家工厂所在国（决定能卖给哪些阵营） */
+  home: string
 }
 
 /** 开局掌握的技术：每条梯子取开局里最高的那一代。 */
@@ -169,6 +172,7 @@ export function createGame(seed: number): GameState {
     research: createResearch(),
     rep: 50,
     bribes: 0,
+    home: 'fra',
   }
   pushLog(state, { d: 0, k: 'note', t: `开工。${ERAS[state.era]!.blurb}` })
   pushLog(state, { d: 0, k: 'note', t: '厂里只有一条产线、一份刚开张的名声 —— 先看订单。' })

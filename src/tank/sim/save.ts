@@ -12,6 +12,7 @@
 import { NEWS, TOTAL_DAYS, eraIndexAt } from './calendar'
 import { buildTank } from '../model/build'
 import { TECH_BY_ID } from '../data/tech'
+import { NATION_BY_ID } from '../data/nations'
 import { upgradeById } from './research'
 import {
   LOG_CAP,
@@ -46,6 +47,7 @@ export interface SaveFile {
   research: ResearchState
   rep: number
   bribes: number
+  home: string
 }
 
 export function toSaveFile(s: GameState): SaveFile {
@@ -63,6 +65,7 @@ export function toSaveFile(s: GameState): SaveFile {
     research: s.research,
     rep: s.rep,
     bribes: s.bribes,
+    home: s.home,
   }
 }
 
@@ -359,5 +362,6 @@ export function decodeSave(raw: string | null | undefined): GameState | null {
     research: coerceResearch(o.research),
     rep: Math.round(clamp(o.rep, 0, 100, 50)),
     bribes: Math.round(clamp(o.bribes, 0, 999, 0)),
+    home: typeof o.home === 'string' && NATION_BY_ID.has(o.home as never) ? o.home : 'fra',
   }
 }

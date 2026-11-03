@@ -63,13 +63,15 @@ check('剩余天数 28,123', root.textContent!.includes('28,123 天'))
 check('日志里有开张那条', root.textContent!.includes('开工'))
 
 // 产品与招标
-check('默认产品是 FT-17', (q(root, '.sel') as HTMLSelectElement | null)?.value === 'FT-17')
+check('默认产品是 FT-17', (q(root, '.product-select') as HTMLSelectElement | null)?.value === 'FT-17')
 check('开局有三份标', all(root, '.offer').length === 3, `实际 ${all(root, '.offer').length}`)
 check('标上写了四维门槛', all(root, '.offer-need').every((e) => e.textContent!.includes('总分')))
 check('小单是 4 台', txt(root, '.offer-qty').includes('4 台'), txt(root, '.offer-qty'))
 check('每份标都有竞品', all(root, '.offer-rival').length === 3, `实际 ${all(root, '.offer-rival').length}`)
 check('有压价与贿赂按钮', all(root, '.chip-undercut').length === 3 && all(root, '.chip-bribe').length === 3)
 check('厂子面板显示信誉', root.textContent!.includes('信誉'))
+check('开局国家是法国', (q(root, '.home-select') as HTMLSelectElement).value === 'fra')
+check('开局国家可选', (q(root, '.home-select') as HTMLSelectElement).disabled === false)
 
 // 变速 / 暂停
 const b30 = all(root, '.chip[data-speed]').find((b) => b.getAttribute('data-speed') === '30')!
@@ -90,11 +92,12 @@ check('跳到下一条快讯（索姆河）', txt(root, '.date') === '1916年9�
 check('日志里出现索姆河那条', root.textContent!.includes('索姆河'))
 check('跳完之后自动暂停', q(root, '.paused-tag')?.classList.contains('show') === true)
 check('暂停原因显示为「世界变了」', txt(root, '.paused-tag').includes('世界变了'), txt(root, '.paused-tag'))
+check('开工后国家锁定', (q(root, '.home-select') as HTMLSelectElement).disabled === true)
 
 // 存档
-const raw = store.read('tank-works.save.v5')
+const raw = store.read('tank-works.save.v6')
 const saved = raw ? JSON.parse(raw) : null
-check('存档已写入 v5', typeof raw === 'string' && raw.length > 0 && saved?.v === 5)
+check('存档已写入 v6', typeof raw === 'string' && raw.length > 0 && saved?.v === 6)
 check('存档里是 1916-09-15 那天', saved?.day === 623, String(saved?.day))
 check('存档里没有 era 字段（由天数重算）', saved !== null && !('era' in saved))
 check('存档里有产品与招标', saved?.design?.name === 'FT-17' && Array.isArray(saved?.offers) && saved.offers.length === 3)
@@ -105,7 +108,7 @@ check('第二次跳转把日期推得更远', txt(root, '.date') !== '1916年9�
 
 // 读档
 const store2 = createMemoryStorage()
-store2.write('tank-works.save.v5', raw as string)
+store2.write('tank-works.save.v6', raw as string)
 const root2 = mount(store2, 1)
 check('重开页面能从存档恢复到 1916-09-15', txt(root2, '.date') === '1916年9月15日', txt(root2, '.date'))
 
@@ -127,7 +130,7 @@ q(root7, '.chip-jump')!.dispatchEvent(new win.Event('click') as unknown as Event
 check('跳完之后科技完成', root7.textContent!.includes('研发完成'))
 check('科技完成会自动暂停', txt(root7, '.paused-tag').includes('科技完成'), txt(root7, '.paused-tag'))
 check('完成后没有在研项目', all(root7, '.project').length === 0, `实际 ${all(root7, '.project').length}`)
-const raw7 = store7.read('tank-works.save.v5')
+const raw7 = store7.read('tank-works.save.v6')
 check('存档里带研发状态', raw7 ? Array.isArray(JSON.parse(raw7).research?.projects) : false)
 const techRaw = win.localStorage.getItem('tank-works.tech.v1')
 const techSnap = techRaw ? (JSON.parse(techRaw) as { parts?: { hull?: string[] }; limits?: { slopeMax?: number } }) : null
@@ -165,6 +168,17 @@ store8.write(
 const root8 = mount(store8, 1)
 check('v3 存档能恢复日期', txt(root8, '.date') === '1916年9月15日', txt(root8, '.date'))
 check('v3 存档补上研发', txt(root8, '.research-info').includes('槽 1'), txt(root8, '.research-info'))
+check('v3 存档补上国家', (q(root8, '.home-select') as HTMLSelectElement).value === 'fra')
+
+const store11 = createMemoryStorage()
+const root11 = mount(store11, 31)
+const home11 = q(root11, '.home-select') as HTMLSelectElement
+home11.value = 'ger'
+home11.dispatchEvent(new win.Event('change') as unknown as Event)
+check('能改国家到德国', home11.value === 'ger')
+check('改国家后仍有标', all(root11, '.offer').length === 3)
+const saved11 = JSON.parse(store11.read('tank-works.save.v6')!)
+check('国家写进存档', saved11.home === 'ger')
 
 // ── 2c. 游说：贿赂 / 压价 ────────────────────────────────
 const store9 = createMemoryStorage()
@@ -192,20 +206,20 @@ acceptBtn!.dispatchEvent(new win.Event('click') as unknown as Event)
 check('接单后出现订单面板', (q(root3, '.contract')?.textContent ?? '').includes('已交付 0 / 4 台'))
 check('接单后招标列表清空', all(root3, '.offer').length === 0)
 check('接单后备料花钱', cashOf(root3) < cash0, `${cash0} → ${cashOf(root3)}`)
-check('订单执行中不能换产品', (q(root3, '.sel') as HTMLSelectElement).disabled === true)
+check('订单执行中不能换产品', (q(root3, '.product-select') as HTMLSelectElement).disabled === true)
 check('产线在运转', root3.textContent!.includes('产线 运转中'))
 
-const raw3 = store3.read('tank-works.save.v5')
+const raw3 = store3.read('tank-works.save.v6')
 const saved3 = raw3 ? JSON.parse(raw3) : null
 check('接单后存档里有订单', saved3?.contract?.qty === 4 && saved3?.contract?.delivered === 0)
 check('接单后存档里有产线', Array.isArray(saved3?.factory?.lines) && saved3.factory.lines.length === 1)
 
 // 重开：订单与产线都还在
 const store4 = createMemoryStorage()
-store4.write('tank-works.save.v5', raw3 as string)
+store4.write('tank-works.save.v6', raw3 as string)
 const root4 = mount(store4, 1)
 check('重开后订单还在', (q(root4, '.contract')?.textContent ?? '').includes('已交付 0 / 4 台'))
-check('重开后产品仍是 FT-17', (q(root4, '.sel') as HTMLSelectElement).value === 'FT-17')
+check('重开后产品仍是 FT-17', (q(root4, '.product-select') as HTMLSelectElement).value === 'FT-17')
 
 // 跳到下一件事：订单应该在这期间交完，自动回到招标
 const jump4 = q(root4, '.chip-jump')!
@@ -216,7 +230,7 @@ check('交完后回到招标列表', all(root4, '.offer').length === 3, `实际 
 check('交完后现金超过开局', cashOf(root4) > 2_000_000, txt(root4, '.cash-value'))
 check('日志里有订单完成', root4.textContent!.includes('订单完成'))
 check('暂停标签显示订单完成', txt(root4, '.paused-tag').includes('订单完成'), txt(root4, '.paused-tag'))
-check('交完后可以换产品', (q(root4, '.sel') as HTMLSelectElement).disabled === false)
+check('交完后可以换产品', (q(root4, '.product-select') as HTMLSelectElement).disabled === false)
 
 // ── 4. 旧存档（v2）可以直接读 ─────────────────────────────
 const store5 = createMemoryStorage()
@@ -224,7 +238,7 @@ store5.write('tank-works.save.v2', JSON.stringify({ v: 2, seed: 1, day: 623, cas
 const root5 = mount(store5, 1)
 check('v2 存档能恢复日期', txt(root5, '.date') === '1916年9月15日', txt(root5, '.date'))
 check('v2 存档现金照旧', cashOf(root5) === 500_000, txt(root5, '.cash-value'))
-check('v2 存档默认产品 FT-17', (q(root5, '.sel') as HTMLSelectElement).value === 'FT-17')
+check('v2 存档默认产品 FT-17', (q(root5, '.product-select') as HTMLSelectElement).value === 'FT-17')
 check('v2 存档读回来有招标', all(root5, '.offer').length === 3, `实际 ${all(root5, '.offer').length}`)
 
 // ── 5. 设计局 → 主循环：导入本厂设计 ─────────────────────
@@ -243,12 +257,12 @@ check(
 )
 const adoptBtn6 = q(root6, '.chip-adopt') as HTMLButtonElement
 adoptBtn6.dispatchEvent(new win.Event('click') as unknown as Event)
-const sel6 = q(root6, '.sel') as HTMLSelectElement
+const sel6 = q(root6, '.product-select') as HTMLSelectElement
 const selectedText6 = (): string => sel6.options[sel6.selectedIndex]?.textContent ?? ''
 check('导入后产品变成 FT-17 改', selectedText6().includes('FT-17 改'), selectedText6())
 check('导入后下拉有本厂选项', root6.textContent!.includes('本厂 · FT-17 改'))
 check('导入写进日志', root6.textContent!.includes('导入本厂设计'))
-const raw6 = store6.read('tank-works.save.v5')
+const raw6 = store6.read('tank-works.save.v6')
 check('导入的设计进了存档', raw6 ? JSON.parse(raw6).design.name === 'FT-17 改' : false)
 check('导入后仍可接单', (q(root6, '.chip-accept') as HTMLButtonElement).disabled === false)
 

@@ -16,6 +16,7 @@ import { buildTank } from '../model/build'
 import { designYear } from '../model/era'
 import { designCheck, techMods } from './research'
 import { HISTORICAL } from '../data/historical'
+import { customersFor } from '../data/nations'
 import { TOTAL_DAYS, dateOf, formatDate } from './calendar'
 import {
   RETOOL_KEEP,
@@ -46,8 +47,17 @@ export const TOPUP_UNITS = 5
 /** 逾期交付的单价折扣。 */
 export const LATE_PENALTY = 0.7
 
-/** 竞品设计商。按标轮换，不建 6 套 AI，先用「名字 + 分数」把竞争关系立起来。 */
-const RIVALS = ['莱茵金属', '维克斯', '施耐德', '克虏伯', '布尔什维克设计局', '岩崎重工'] as const
+/** 竞品设计商。按标轮换，不建 6 套 AI，先用「名字 + 成长系数」把竞争关系立起来。 */
+const RIVALS = [
+  { name: '莱茵金属', skill: 0.94 },
+  { name: '维克斯', skill: 0.92 },
+  { name: '施耐德', skill: 0.9 },
+  { name: '克虏伯', skill: 0.96 },
+  { name: '布尔什维克设计局', skill: 0.93 },
+  { name: '岩崎重工', skill: 0.91 },
+  { name: '斯柯达', skill: 0.89 },
+  { name: '通用动力', skill: 0.95 },
+] as const
 
 /** 接单方式：原价 / 压价 5% / 贿赂。 */
 export type BidMode = 'normal' | 'undercut' | 'bribe'
@@ -160,6 +170,8 @@ export function refreshOffers(state: GameState, force = false, day = state.day):
 
   const ref = referenceFor(era)
   const tank = buildTank(ref.design)
+  const year = dateOf(day).year
+  const customers = customersFor(state.home, year)
   const need: RawDims = {
     armor: Math.round(tank.raw.armor * 0.7),
     pen: Math.round(tank.raw.pen * 0.7),
@@ -170,18 +182,23 @@ export function refreshOffers(state: GameState, force = false, day = state.day):
 
   state.offers = VARIANTS.map((v, i) => {
     const h = hash(state.seed, era, day, i)
-    const rivalScore = Math.round(tank.score.total * (0.78 + (h % 19) / 100))
+    const firm = RIVALS[h % RIVALS.length]!
+    // 竞品逐年变强：同样的参照车，1991 年的竞品比 1915 年更难打
+    const growth = Math.max(0, year - 1915) * 0.001
+    const skill = Math.min(1.02, firm.skill + growth + (((h >>> 16) % 7) - 3) / 100)
+    const rivalScore = Math.round(tank.score.total * skill)
     const rivalPrice = Math.round(tank.cost.total * v.factor * (0.9 + ((h >>> 8) % 21) / 100))
+    const customer = customers[i % Math.max(1, customers.length)]
     return {
       id: `${era}-${v.key}-${day}`,
-      nation: ref.nation,
+      nation: customer?.name ?? ref.nation,
       ref: ref.name,
       qty: v.qty,
       deadline: Math.min(TOTAL_DAYS - 1, day + v.days),
       unitPrice: Math.round(tank.cost.total * v.factor),
       need: { ...need },
       totalMin,
-      rival: { name: RIVALS[h % RIVALS.length]!, score: rivalScore, price: rivalPrice },
+      rival: { name: firm.name, score: rivalScore, price: rivalPrice },
       bribeCost: Math.round(tank.cost.total * v.factor * v.qty * 0.08),
     }
   })
