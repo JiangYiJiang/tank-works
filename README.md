@@ -84,19 +84,14 @@ tools/        界面冒烟测试 + 文档表格生成
 
 ## 版本管理
 
-仓库已初始化（`main`）并完成首个基线提交（63 个文件）。推送前先在 GitHub 建一个**空仓库**（不要勾 README / .gitignore / license），然后：
+远程仓库：<https://github.com/JiangYiJiang/tank-works>（`main` 已跟踪 `origin/main`）。日常：
 
 ```bash
-git remote add origin <仓库地址>
-git push -u origin main
+git add -A && git commit -m "..."
+git push
 ```
 
-GitHub 不接受账号密码：第一次 push 时，
-
-- **Username** 填 GitHub 用户名；
-- **Password** 填 **Personal Access Token**（GitHub → Settings → Developer settings → Personal access tokens，勾 `repo`）。
-
-凭据会存进 Windows 凭据管理器（`credential.helper=wincred`），之后不用再输。`.gitignore` 已排除 `node_modules/`、`dist/`、`.tmp/`；Windows 上 `git add` 提示的 CRLF 是正常现象。
+GitHub 不接受账号密码：push 的 Password 处要填 **Personal Access Token**（GitHub → Settings → Developer settings → Personal access tokens，勾 `repo`）。第一次输入后由 Windows 凭据管理器（`credential.helper=wincred`）保存。`.gitignore` 已排除 `node_modules/`、`dist/`、`.tmp/`；Windows 上 `git add` 提示的 CRLF 是正常现象。
 
 ## 已知边界
 

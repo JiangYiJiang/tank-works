@@ -195,7 +195,7 @@
 
 | # | 问题 | 现状 / 建议 |
 |---|---|---|
-| E1 | **git 仓库已建，remote 未配置** | `main` 上已有首个基线提交（63 个文件）；还差 GitHub 仓库地址与 PAT 才能 push。见 README「版本管理」 |
+| E1 | **git 仓库** | ✅ 已建 `main` 并推送到 <https://github.com/JiangYiJiang/tank-works>（基线提交 63 个文件）；之后改完跑 `git push` 即可 |
 | E2 | **四份 `:root` 配色重复** | `ui/style.css`、`ui/research.css`、`ui/factory.css`、`game/style.css` 各自声明一套相近变量。抽公共 `theme.css` 会改变 `--dim/--faint` 取值，需要视觉回归后再做 |
 | E3 | **没有端到端测试** | 只有「每个页面能开」的冒烟；缺「打一局 77 年」的集成测试 |
 | E4 | **界面整块重绘** | 数据量小的时候无感；接上主循环后要改增量更新 |
