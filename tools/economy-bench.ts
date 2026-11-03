@@ -144,7 +144,7 @@ const future = createGame(53)
 refreshOffers(future)
 future.design = byName('虎王')
 const futureRes = acceptOffer(future, future.offers[0]!.id)
-check('1915 年接不了 1944 年的车', !futureRes.ok && futureRes.msg.includes('年才成熟'), futureRes.msg)
+check('1915 年接不了 1944 年的车', !futureRes.ok && futureRes.msg.includes('1944'), futureRes.msg)
 
 console.log(`\n${pass} 通过 / ${fail} 失败\n`)
 if (fail > 0) process.exitCode = 1

@@ -2,12 +2,13 @@
  * 让时间往前走。
  *
  * 这是整个游戏里唯一一个「热循环」：一次快进可能要走两万八千圈，
- * 所以每一圈只做三件事 —— 时代边界、历史快讯、以及（有订单时）经济结算。
+ * 所以每一圈只做四件事 —— 时代边界、历史快讯、经济结算、研发推进。
  * 没有事件队列、没有遍历、没有分配。
  */
 
 import { ERAS, NEWS, TOTAL_DAYS } from './calendar'
 import { economyDay, refreshOffers } from './contract'
+import { advanceResearch } from './research'
 import { daysToNextEvent, pushLog, type GameState } from './state'
 
 export interface AdvanceResult {
@@ -17,6 +18,8 @@ export interface AdvanceResult {
   newsCount: number
   /** 这一跳里有没有订单完成 */
   contractDone: boolean
+  /** 这一跳里有没有技术研发完成 */
+  researchDone: boolean
   /** 这一跳之后，游戏是不是结束了 */
   ended: boolean
 }
@@ -33,9 +36,10 @@ export function advanceDays(state: GameState, days: number): AdvanceResult {
   let eraChanged = false
   let newsCount = 0
   let contractDone = false
+  let researchDone = false
 
   if (target === start) {
-    return { days: 0, eraChanged: false, newsCount: 0, contractDone: false, ended: state.over }
+    return { days: 0, eraChanged: false, newsCount: 0, contractDone: false, researchDone: false, ended: state.over }
   }
 
   for (let d = start + 1; d <= target; d++) {
@@ -69,8 +73,25 @@ export function advanceDays(state: GameState, days: number): AdvanceResult {
       if (e.contractDone) contractDone = true
       if (e.bankrupt) {
         state.day = d
-        return { days: d - start, eraChanged, newsCount, contractDone, ended: true }
+        return { days: d - start, eraChanged, newsCount, contractDone, researchDone, ended: true }
       }
+    }
+
+    // 研发：项目按天推进，槽位维持费按天扣。
+    if (!state.over) {
+      const tech = advanceResearch(state, d, 1)
+      if (tech.spent > 0) state.cash -= tech.spent
+      if (tech.completed > 0) researchDone = true
+    }
+
+    // 现金见底：不管是因为工资、材料还是研发费，都算破产。
+    if (!state.over && state.cash < 0) {
+      state.over = true
+      const line = state.factory?.lines[0]
+      if (line && line.state === 'running') line.state = 'idle'
+      pushLog(state, { d, k: 'note', t: '现金见底：工资 / 研发费发不出来，厂子破产了。' })
+      state.day = d
+      return { days: d - start, eraChanged, newsCount, contractDone, researchDone, ended: true }
     }
   }
 
@@ -79,10 +100,10 @@ export function advanceDays(state: GameState, days: number): AdvanceResult {
   if (!state.over && state.day >= TOTAL_DAYS - 1) {
     state.over = true
     pushLog(state, { d: state.day, k: 'note', t: '1991 年 12 月 31 日。这一局结束了。' })
-    return { days: target - start, eraChanged, newsCount, contractDone, ended: true }
+    return { days: target - start, eraChanged, newsCount, contractDone, researchDone, ended: true }
   }
 
-  return { days: target - start, eraChanged, newsCount, contractDone, ended: state.over }
+  return { days: target - start, eraChanged, newsCount, contractDone, researchDone, ended: state.over }
 }
 
 /**

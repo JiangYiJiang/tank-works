@@ -536,6 +536,71 @@ body {
   text-align: right;
 }
 
+.research-info {
+  color: var(--faint);
+  font-size: 10.5px;
+  margin-bottom: 7px;
+}
+
+.projects {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.project {
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  background: var(--panel-2);
+}
+
+.project-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+  font-size: 11px;
+}
+
+.project-pct {
+  color: var(--faint);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.tech-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.tech-select {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+}
+
+.chip-tech {
+  color: var(--amber);
+  border-color: #45361f;
+  white-space: nowrap;
+}
+
+.upgrades {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.chip-upgrade {
+  padding: 4px 7px;
+  color: var(--cyan);
+  border-color: #1f3a40;
+  font-size: 10.5px;
+}
+
 /* ── 提示层 ───────────────────────────────────────────── */
 
 .banner,

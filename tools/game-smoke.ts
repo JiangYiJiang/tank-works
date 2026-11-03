@@ -89,9 +89,9 @@ check('跳完之后自动暂停', q(root, '.paused-tag')?.classList.contains('sh
 check('暂停原因显示为「世界变了」', txt(root, '.paused-tag').includes('世界变了'), txt(root, '.paused-tag'))
 
 // 存档
-const raw = store.read('tank-works.save.v3')
+const raw = store.read('tank-works.save.v4')
 const saved = raw ? JSON.parse(raw) : null
-check('存档已写入 v3', typeof raw === 'string' && raw.length > 0 && saved?.v === 3)
+check('存档已写入 v4', typeof raw === 'string' && raw.length > 0 && saved?.v === 4)
 check('存档里是 1916-09-15 那天', saved?.day === 623, String(saved?.day))
 check('存档里没有 era 字段（由天数重算）', saved !== null && !('era' in saved))
 check('存档里有产品与招标', saved?.design?.name === 'FT-17' && Array.isArray(saved?.offers) && saved.offers.length === 3)
@@ -102,9 +102,59 @@ check('第二次跳转把日期推得更远', txt(root, '.date') !== '1916年9�
 
 // 读档
 const store2 = createMemoryStorage()
-store2.write('tank-works.save.v3', raw as string)
+store2.write('tank-works.save.v4', raw as string)
 const root2 = mount(store2, 1)
 check('重开页面能从存档恢复到 1916-09-15', txt(root2, '.date') === '1916年9月15日', txt(root2, '.date'))
+
+// ── 2b. 研发：开工 → 推进 → 完成 ───────────────────────────
+const store7 = createMemoryStorage()
+const root7 = mount(store7, 11)
+check('有研发面板', txt(root7, '.research-info').includes('槽 1'), txt(root7, '.research-info'))
+const techSel7 = q(root7, '.tech-select') as HTMLSelectElement
+check('开局有可开工的技术', techSel7.options.length > 0, `实际 ${techSel7.options.length}`)
+const firstTech7 = techSel7.options[0]?.value ?? ''
+const cashBeforeTech = cashOf(root7)
+techSel7.value = firstTech7
+techSel7.dispatchEvent(new win.Event('change') as unknown as Event)
+q(root7, '.chip-tech')!.dispatchEvent(new win.Event('click') as unknown as Event)
+check('开工后扣了研发费', cashOf(root7) < cashBeforeTech, `${cashBeforeTech} → ${cashOf(root7)}`)
+check('开工后出现在研项目', all(root7, '.project').length === 1, `实际 ${all(root7, '.project').length}`)
+check('开工写进日志', root7.textContent!.includes('开工：'))
+q(root7, '.chip-jump')!.dispatchEvent(new win.Event('click') as unknown as Event)
+check('跳完之后科技完成', root7.textContent!.includes('研发完成'))
+check('科技完成会自动暂停', txt(root7, '.paused-tag').includes('科技完成'), txt(root7, '.paused-tag'))
+check('完成后没有在研项目', all(root7, '.project').length === 0, `实际 ${all(root7, '.project').length}`)
+const raw7 = store7.read('tank-works.save.v4')
+check('存档里带研发状态', raw7 ? Array.isArray(JSON.parse(raw7).research?.projects) : false)
+
+// v3 老存档：没有 research 字段，读回来应当补成开局研发
+const store8 = createMemoryStorage()
+store8.write(
+  'tank-works.save.v3',
+  JSON.stringify({
+    v: 3,
+    seed: 1,
+    day: 623,
+    cash: 500000,
+    over: false,
+    log: [],
+    design: {
+      name: 'FT-17',
+      hull: 'ft',
+      armor: { material: 'rha', front: 16, frontSlope: 20, side: 16, turretFront: 16, turretSlope: 15 },
+      gun: 'sa18',
+      engine: 'ft_eng',
+      suspension: 'ft_susp',
+      aux: 'bare',
+    },
+    factory: null,
+    contract: null,
+    offers: [],
+  }),
+)
+const root8 = mount(store8, 1)
+check('v3 存档能恢复日期', txt(root8, '.date') === '1916年9月15日', txt(root8, '.date'))
+check('v3 存档补上研发', txt(root8, '.research-info').includes('槽 1'), txt(root8, '.research-info'))
 
 // ── 3. 经济闭环：接单 → 交付 → 回款 ───────────────────────
 const store3 = createMemoryStorage()
@@ -120,14 +170,14 @@ check('接单后备料花钱', cashOf(root3) < cash0, `${cash0} → ${cashOf(roo
 check('订单执行中不能换产品', (q(root3, '.sel') as HTMLSelectElement).disabled === true)
 check('产线在运转', root3.textContent!.includes('产线 运转中'))
 
-const raw3 = store3.read('tank-works.save.v3')
+const raw3 = store3.read('tank-works.save.v4')
 const saved3 = raw3 ? JSON.parse(raw3) : null
 check('接单后存档里有订单', saved3?.contract?.qty === 4 && saved3?.contract?.delivered === 0)
 check('接单后存档里有产线', Array.isArray(saved3?.factory?.lines) && saved3.factory.lines.length === 1)
 
 // 重开：订单与产线都还在
 const store4 = createMemoryStorage()
-store4.write('tank-works.save.v3', raw3 as string)
+store4.write('tank-works.save.v4', raw3 as string)
 const root4 = mount(store4, 1)
 check('重开后订单还在', (q(root4, '.contract')?.textContent ?? '').includes('已交付 0 / 4 台'))
 check('重开后产品仍是 FT-17', (q(root4, '.sel') as HTMLSelectElement).value === 'FT-17')
@@ -173,7 +223,7 @@ const selectedText6 = (): string => sel6.options[sel6.selectedIndex]?.textConten
 check('导入后产品变成 FT-17 改', selectedText6().includes('FT-17 改'), selectedText6())
 check('导入后下拉有本厂选项', root6.textContent!.includes('本厂 · FT-17 改'))
 check('导入写进日志', root6.textContent!.includes('导入本厂设计'))
-const raw6 = store6.read('tank-works.save.v3')
+const raw6 = store6.read('tank-works.save.v4')
 check('导入的设计进了存档', raw6 ? JSON.parse(raw6).design.name === 'FT-17 改' : false)
 check('导入后仍可接单', (q(root6, '.chip-accept') as HTMLButtonElement).disabled === false)
 
@@ -184,7 +234,7 @@ win.localStorage.setItem('tank-works.design.v1', JSON.stringify({ at: Date.now()
 check('焦点回来后刷新了接车行', txt(root6, '.adopt-note').includes('Tiger II'), txt(root6, '.adopt-note'))
 adoptBtn6.dispatchEvent(new win.Event('click') as unknown as Event)
 check('超前设计被拒绝', selectedText6().includes('FT-17 改'), selectedText6())
-check('拒绝时说明了年代', txt(root6, '.flash-text').includes('客户不会要'), txt(root6, '.flash-text'))
+check('拒绝时说明了年代', txt(root6, '.flash-text').includes('1944') || txt(root6, '.flash-text').includes('造不出来'), txt(root6, '.flash-text'))
 
 console.log(`\n${pass} 通过 / ${fail} 失败\n`)
 // rAF 循环会真的挂住事件循环，测完必须硬退

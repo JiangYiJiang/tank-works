@@ -14,6 +14,7 @@
 
 import { buildTank } from '../model/build'
 import { designYear } from '../model/era'
+import { designCheck } from './research'
 import { HISTORICAL } from '../data/historical'
 import { TOTAL_DAYS, dateOf, formatDate } from './calendar'
 import {
@@ -90,10 +91,12 @@ export function referenceFor(era: number): (typeof HISTORICAL)[number] {
   return HISTORICAL.find((h) => h.name === name) ?? HISTORICAL[0]!
 }
 
-/** 玩家现在能选哪些车。 */
-export function productCandidates(day: number): (typeof HISTORICAL)[number][] {
+/** 玩家现在能选哪些车。传了研发状态就只列「现在造得出来」的。 */
+export function productCandidates(day: number, research?: GameState['research']): (typeof HISTORICAL)[number][] {
   const year = dateOf(day).year + PRODUCT_LEAD_YEARS
-  return HISTORICAL.filter((h) => h.year <= year).sort((a, b) => a.year - b.year)
+  return HISTORICAL.filter(
+    (h) => h.year <= year && (!research || designCheck(h.design, research).ok),
+  ).sort((a, b) => a.year - b.year)
 }
 
 /** 一份标要求的四维 + 总分，是不是被这台车满足了。 */
@@ -168,6 +171,8 @@ export function acceptOffer(state: GameState, offerId: string): AcceptResult {
   if (offer.deadline <= state.day) return { ok: false, msg: '这份标已经过期了' }
 
   const tank = buildTank(state.design)
+  const gate = designCheck(state.design, state.research)
+  if (!gate.ok) return { ok: false, msg: gate.reason }
   const limitYear = dateOf(state.day).year + PRODUCT_LEAD_YEARS
   if (designYear(state.design) > limitYear) {
     return { ok: false, msg: `这辆车的零件 ${designYear(state.design)} 年才成熟，${limitYear} 年前客户不会要` }

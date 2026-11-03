@@ -7,15 +7,17 @@
  * 推进到第 20,000 天时，这部分和第一天一样大。
  *
  * v3 起，存档开始装「玩家真正做出来的东西」：当前产品、产线、订单、在手合同。
+ * v4 再加研发：已掌握的技术世代、在研项目、买过的槽位/速度升级。
  * 这些都是玩家动作的结果，重算不出来，必须存。
  */
 
 import { ERAS, NEWS, TOTAL_DAYS, eraIndexAt } from './calendar'
 import { HISTORICAL } from '../data/historical'
+import { STARTING_TECH } from '../data/tech'
 import type { RawDims, TankDesign } from '../types'
 import type { FactoryState } from './factory'
 
-export const STATE_VERSION = 3
+export const STATE_VERSION = 4
 
 /** 日志最多留这么多条。够看，又不会让存档随游戏时间一起涨。 */
 export const LOG_CAP = 160
@@ -67,6 +69,26 @@ export interface ActiveContract extends Offer {
   paid: number
 }
 
+/** 一条在研技术。 */
+export interface ResearchProject {
+  ladder: string
+  tier: number
+  /** 需要的槽月（已乘超前 / 追赶系数） */
+  months: number
+  /** 已经投入的槽月 */
+  progress: number
+  /** 开工时付掉的钱（报表用） */
+  cost: number
+}
+
+export interface ResearchState {
+  /** ladder → 已掌握的最高 tier；0 / 缺省表示还没开始 */
+  mastered: Record<string, number>
+  projects: ResearchProject[]
+  /** 已买的升级，id 形如 `slot-1934` / `speed-1958` */
+  upgrades: string[]
+}
+
 export interface GameState {
   version: number
   seed: number
@@ -89,6 +111,21 @@ export interface GameState {
   contract: ActiveContract | null
   /** 桌上有哪几份标 */
   offers: Offer[]
+  /** 研发：已掌握的技术、在研项目、升级 */
+  research: ResearchState
+}
+
+/** 开局掌握的技术：每条梯子取开局里最高的那一代。 */
+export function startingMastered(): Record<string, number> {
+  const mastered: Record<string, number> = {}
+  for (const t of STARTING_TECH) {
+    mastered[t.ladder] = Math.max(mastered[t.ladder] ?? 0, t.tier)
+  }
+  return mastered
+}
+
+export function createResearch(): ResearchState {
+  return { mastered: startingMastered(), projects: [], upgrades: [] }
 }
 
 /** 开局车：FT-17。返回一份深拷贝，避免玩家改设计时污染历史 fixture。 */
@@ -111,6 +148,7 @@ export function createGame(seed: number): GameState {
     factory: null,
     contract: null,
     offers: [],
+    research: createResearch(),
   }
   pushLog(state, { d: 0, k: 'note', t: `开工。${ERAS[state.era]!.blurb}` })
   pushLog(state, { d: 0, k: 'note', t: '厂里只有一条产线、一份刚开张的名声 —— 先看订单。' })

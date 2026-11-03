@@ -83,7 +83,7 @@ const ARMOR: TechTier[] = [
   T('armor.form', 3, '铸造车体', 1940, 12, 150_000, ['armor.form.2'], '成本 ×0.90、形状自由，但 ke ×0.95', { labor: 0.9, ke: 0.95 }),
   T('armor.form', 4, '精密铸造', 1962, 29, 220_000, ['armor.form.3'], '铸件的 ke 回到 0.98', { ke: 0.98 }),
 
-  T('armor.slope', 1, '垂直装甲', 1912, 0, 0, [], '倾角滑条上限 15°'),
+  T('armor.slope', 1, '垂直装甲', 1912, 0, 0, [], '倾角滑条上限 20°'),
   T('armor.slope', 2, '大倾角设计', 1938, 12, 90_000, ['armor.form.2'], '倾角上限 15° → 70°，内部容积惩罚减半', { slopeMax: 70 }),
   T('armor.slope', 3, '双斜面尖头', 1944, 14, 160_000, ['armor.slope.2'], 'pike 下界 1.12：水平垂直同时借角', { pike: 1.12 }),
 
@@ -123,7 +123,7 @@ const AMMO: TechTier[] = [
   T('ammo.prop', 2, '双基发射药', 1937, 10, 80_000, ['ammo.prop.1'], '能量 +8%：同样的炮打出更高初速', { charge: 1.08 }),
   T('ammo.prop', 3, '低烧蚀三基药', 1961, 26, 200_000, ['ammo.prop.2'], '能量 +6%，炮管寿命 ×1.5（维护费降）', { charge: 1.06, barrelLife: 1.5 }),
 
-  T('ammo.pen', 1, '钨合金弹芯', 1941, 0, 0, [], '随硬芯弹一起到手'),
+  T('ammo.pen', 1, '钨合金弹芯', 1941, 10, 90_000, ['ammo.apcr.1'], '随硬芯弹一起到手；现在要单独排产'),
   T('ammo.pen', 2, '高密度钨合金', 1968, 48, 300_000, ['ammo.pen.1'], '密度 18：弹芯更短更重', { density: 18 }),
   T('ammo.pen', 3, '贫铀自锐弹芯', 1982, 63, 650_000, ['ammo.pen.2'], '密度 19 + 自锐效应，杆体穿透效率 ×1.08', { density: 19 }),
 ]
@@ -371,6 +371,8 @@ export interface ResearchUpgrade {
   upkeep: number
   name: string
   effect: string
+  /** 速度升级才有：研发速度倍率 */
+  mult?: number
 }
 
 /**
@@ -389,8 +391,8 @@ export const SLOT_UPGRADES: readonly ResearchUpgrade[] = [
  * 注意它和加槽的区别 —— 加槽能并行，提速只能让单线更快。两者不能互相替代。
  */
 export const SPEED_UPGRADES: readonly ResearchUpgrade[] = [
-  { year: 1934, cost: 150_000, upkeep: 4_000, name: '绘图室扩建', effect: '研发速度 ×1.15' },
-  { year: 1958, cost: 600_000, upkeep: 14_000, name: '计算中心', effect: '研发速度 ×1.30' },
+  { year: 1934, cost: 150_000, upkeep: 4_000, name: '绘图室扩建', effect: '研发速度 ×1.15', mult: 1.15 },
+  { year: 1958, cost: 600_000, upkeep: 14_000, name: '计算中心', effect: '研发速度 ×1.30', mult: 1.3 },
 ]
 
 /** 每个科研槽每月的基础开销（元）。随年代上浮，因为工程师也要涨工资。 */

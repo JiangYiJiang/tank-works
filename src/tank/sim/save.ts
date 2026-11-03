@@ -3,15 +3,29 @@
  *
  * v3 起存档分两半：
  *   - 可重算的部分（时代、快讯游标）**不入档**，读档时由 day 重算；
- *   - 不可重算的部分（产品、产线、订单、在手合同）必须存。
+ *   - 不可重算的部分（产品、产线、订单、在手合同、研发进度）必须存。
  *
  * 读档策略仍然是「宽进严出」：字段坏了就退回默认值，整体不像样才返回 null。
- * v1 / v2 的老存档可以直接读，产品默认 FT-17、没有产线与订单。
+ * v1 / v2 / v3 的老存档可以直接读：产品默认 FT-17、没有产线/订单、研发回到开局水平。
  */
 
 import { NEWS, TOTAL_DAYS, eraIndexAt } from './calendar'
 import { buildTank } from '../model/build'
-import { LOG_CAP, STATE_VERSION, starterDesign, type ActiveContract, type GameState, type LogEntry, type LogKind, type Offer } from './state'
+import { TECH_BY_ID } from '../data/tech'
+import { upgradeById } from './research'
+import {
+  LOG_CAP,
+  STATE_VERSION,
+  createResearch,
+  starterDesign,
+  type ActiveContract,
+  type GameState,
+  type LogEntry,
+  type LogKind,
+  type Offer,
+  type ResearchProject,
+  type ResearchState,
+} from './state'
 import type { FactoryState, LineState, ProductionLine, PurchaseOrder } from './factory'
 import type { ArmorMaterialId, TankDesign } from '../types'
 
@@ -29,6 +43,7 @@ export interface SaveFile {
   factory: FactoryState | null
   contract: ActiveContract | null
   offers: Offer[]
+  research: ResearchState
 }
 
 export function toSaveFile(s: GameState): SaveFile {
@@ -43,6 +58,7 @@ export function toSaveFile(s: GameState): SaveFile {
     factory: s.factory,
     contract: s.contract,
     offers: s.offers,
+    research: s.research,
   }
 }
 
@@ -226,6 +242,50 @@ function coerceContract(raw: unknown): ActiveContract | null {
   }
 }
 
+function coerceResearch(raw: unknown): ResearchState {
+  const base = createResearch()
+  const o = obj(raw)
+  if (!o) return base
+
+  const mastered: Record<string, number> = { ...base.mastered }
+  const rawMastered = obj(o.mastered)
+  if (rawMastered) {
+    for (const [ladder, tier] of Object.entries(rawMastered)) {
+      const n = Math.round(num(tier, 0))
+      if (n <= 0) continue
+      if (!TECH_BY_ID.has(`${ladder}.${n}`)) continue
+      mastered[ladder] = Math.max(mastered[ladder] ?? 0, n)
+    }
+  }
+
+  const projects: ResearchProject[] = []
+  if (Array.isArray(o.projects)) {
+    for (const rawProject of o.projects) {
+      const p = obj(rawProject)
+      if (!p || typeof p.ladder !== 'string') continue
+      const tier = Math.round(clamp(p.tier, 1, 99, 0))
+      if (!TECH_BY_ID.has(`${p.ladder}.${tier}`)) continue
+      projects.push({
+        ladder: p.ladder.slice(0, 40),
+        tier,
+        months: clamp(p.months, 0.05, 10_000, 0.05),
+        progress: clamp(p.progress, 0, 10_000, 0),
+        cost: clamp(p.cost, 0, 1e12, 0),
+      })
+    }
+  }
+
+  const upgrades: string[] = []
+  if (Array.isArray(o.upgrades)) {
+    for (const rawId of o.upgrades) {
+      if (typeof rawId !== 'string') continue
+      if (upgradeById(rawId) && !upgrades.includes(rawId)) upgrades.push(rawId)
+    }
+  }
+
+  return { mastered, projects, upgrades }
+}
+
 /**
  * 读档。看不懂就返回 null —— 宁可开新局，也不要把半个存档喂给引擎。
  */
@@ -280,5 +340,6 @@ export function decodeSave(raw: string | null | undefined): GameState | null {
     factory,
     contract,
     offers: contract ? [] : offers,
+    research: coerceResearch(o.research),
   }
 }

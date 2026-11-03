@@ -14,20 +14,31 @@ import { advanceDays, skipToNextEvent } from '../sim/advance'
 import { createGame, daysLeft, progress, pushLog, type GameState, type LogEntry } from '../sim/state'
 import { decodeSave, encodeSave } from '../sim/save'
 import { PRODUCT_LEAD_YEARS, acceptOffer, needText, productCandidates, productMeets, refreshOffers } from '../sim/contract'
+import {
+  availableTechs,
+  buyResearchUpgrade,
+  designCheck,
+  effortForTier,
+  monthlyUpkeep,
+  slotsOf,
+  speedOf,
+  startResearch,
+} from '../sim/research'
+import { SLOT_UPGRADES, SPEED_UPGRADES, TECH_BY_ID } from '../data/tech'
 import { buildTank } from '../model/build'
 import { designYear } from '../model/era'
 import { daysPerUnit, inTransitKg, stockOf } from '../sim/factory'
 import { readAdopted } from '../../platform/design-handoff'
 import type { SaveStore } from '../../platform/storage'
 
-const SAVE_KEY = 'tank-works.save.v3'
-/** v2 及更早的存档只存日期与现金，读回来继续用。 */
-const LEGACY_SAVE_KEY = 'tank-works.save.v2'
+const SAVE_KEY = 'tank-works.save.v4'
+/** 旧版本存档：v3 有产品/订单，v2 只有日期与现金。读回来继续用。 */
+const LEGACY_SAVE_KEYS = ['tank-works.save.v3', 'tank-works.save.v2'] as const
 const SPEEDS = [1, 3, 10, 30] as const
 const RENDER_INTERVAL_MS = 70
 const FEED_LIMIT = 60
 
-type PauseReason = 'manual' | 'event' | 'contract' | 'ended'
+type PauseReason = 'manual' | 'event' | 'contract' | 'research' | 'ended'
 
 export interface GameOptions {
   storage: SaveStore
@@ -72,7 +83,10 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   const dayParam = new URLSearchParams(location.search).get('day')
   const forced =
     dayParam === null ? null : Math.max(0, Math.min(TOTAL_DAYS - 1, Math.floor(Number(dayParam)) || 0))
-  const saved = storage.read(SAVE_KEY) ?? storage.read(LEGACY_SAVE_KEY)
+  const saved =
+    storage.read(SAVE_KEY) ??
+    LEGACY_SAVE_KEYS.map((k) => storage.read(k)).find((v): v is string => typeof v === 'string') ??
+    null
   let state: GameState = (forced === null ? decodeSave(saved) : null) ?? createGame(seed())
   if (forced !== null && forced > 0) advanceDays(state, forced)
   // 老存档 / 新开局都可能没有标；没有在手订单就按当前时代补一批。
@@ -90,6 +104,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   let renderedLogCount = -1
   let offerSig = ''
   let candidateSig = ''
+  let techSig = ''
   /** 产品下拉里是否挂着「本厂设计」那个选项 */
   let hasCustom = false
   let flashUntil = 0
@@ -136,6 +151,24 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   const adoptRow = el('div', { class: 'adopt-row' }, adoptBtn, adoptNote)
   adoptBtn.addEventListener('click', importAdopted)
 
+  const researchInfo = el('div', { class: 'research-info' })
+  const projectsWrap = el('div', { class: 'projects' })
+  const techSelect = el('select', { class: 'sel tech-select' })
+  const techStart = el('button', { class: 'chip chip-tech', type: 'button' }, '开工')
+  const techRow = el('div', { class: 'tech-row' }, techSelect, techStart)
+  const techHint = el('div', { class: 'research-info tech-hint' })
+  const upgradeWrap = el('div', { class: 'upgrades' })
+  const researchPanel = el(
+    'section',
+    { class: 'panel' },
+    el('h2', { text: '研发' }),
+    researchInfo,
+    projectsWrap,
+    techRow,
+    techHint,
+    upgradeWrap,
+  )
+
   const offersWrap = el('div', { class: 'offers' })
   const contractWrap = el('div', { class: 'contract' })
 
@@ -159,6 +192,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       adoptRow,
     ),
     el('section', { class: 'panel' }, el('h2', { text: '订单' }), offersWrap, contractWrap),
+    researchPanel,
     el(
       'section',
       { class: 'panel' },
@@ -206,7 +240,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       // 今天已经没有可跳的事件了，那就直接跑到底
       advanceDays(state, TOTAL_DAYS)
     }
-    pauseReason = state.over ? 'ended' : r.contractDone ? 'contract' : 'event'
+    pauseReason = state.over ? 'ended' : r.contractDone ? 'contract' : r.researchDone ? 'research' : 'event'
     acc = 0
     offerSig = ''
     dirty = true
@@ -245,6 +279,11 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       showFlash({ d: state.day, k: 'note', t: '这份设计的数据不完整，去设计局重新采用一次。' })
       return
     }
+    const gate = designCheck(a.design, state.research)
+    if (!gate.ok) {
+      showFlash({ d: state.day, k: 'note', t: `这辆车现在造不出来：${gate.reason}` })
+      return
+    }
     const year = designYear(a.design)
     const limit = dateOf(state.day).year + PRODUCT_LEAD_YEARS
     if (year > limit) {
@@ -275,10 +314,26 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     adoptNote.textContent = `${a.design.name} · ${designYear(a.design)} 年`
   }
 
+  techSelect.addEventListener('change', updateTechHint)
+
+  techStart.addEventListener('click', () => {
+    const id = techSelect.value
+    if (!id) return
+    const res = startResearch(state, id)
+    if (!res.ok) {
+      showFlash({ d: state.day, k: 'note', t: res.msg })
+      return
+    }
+    techSig = ''
+    candidateSig = ''
+    render()
+    save()
+  })
+
   productSelect.addEventListener('change', () => {
     if (state.contract) return
     if (productSelect.value === '__custom__') return
-    const h = productCandidates(state.day).find((c) => c.design.name === productSelect.value)
+    const h = productCandidates(state.day, state.research).find((c) => c.design.name === productSelect.value)
     if (!h) return
     state.design = JSON.parse(JSON.stringify(h.design)) as typeof state.design
     pushLog(state, { d: state.day, k: 'note', t: `改用 ${h.name}（${h.year}）。` })
@@ -340,8 +395,105 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     )
   }
 
+  function renderResearch(): void {
+    const r = state.research
+    const year = dateOf(state.day).year
+    researchInfo.textContent = `槽 ${slotsOf(r)} · 速度 ×${speedOf(r).toFixed(2)} · 月维持 ${money(monthlyUpkeep(r, year))}${
+      r.projects.length ? '' : '（空闲不扣）'
+    }`
+
+    projectsWrap.replaceChildren()
+    if (r.projects.length === 0) {
+      projectsWrap.append(el('p', { class: 'hintline', text: '没有在研项目。' }))
+    }
+    for (const p of r.projects) {
+      const t = TECH_BY_ID.get(`${p.ladder}.${p.tier}`)
+      const pct = Math.min(100, (p.progress / Math.max(0.01, p.months)) * 100)
+      const fill = el('div', { class: 'meter-fill' })
+      fill.style.width = `${pct.toFixed(1)}%`
+      projectsWrap.append(
+        el(
+          'div',
+          { class: 'project' },
+          el(
+            'div',
+            { class: 'project-top' },
+            el('span', { text: t?.name ?? p.ladder }),
+            el('span', { class: 'project-pct', text: `${p.progress.toFixed(1)} / ${p.months.toFixed(1)} 槽月` }),
+          ),
+          el('div', { class: 'meter' }, fill),
+        ),
+      )
+    }
+
+    const list = availableTechs(state)
+    const slotFull = r.projects.length >= slotsOf(r)
+    const sig = `${year}|${slotFull}|${list.map((t) => t.id).join(',')}|${r.projects.length}`
+    if (sig !== techSig) {
+      techSig = sig
+      techSelect.replaceChildren()
+      if (list.length === 0) {
+        techSelect.append(el('option', { value: '', text: '— 没有可开工的技术 —' }))
+      }
+      for (const t of list) {
+        techSelect.append(el('option', { value: t.id, text: `${t.year} · ${t.name}` }))
+      }
+    }
+    techSelect.disabled = list.length === 0 || slotFull
+    techStart.disabled = techSelect.disabled
+    updateTechHint()
+
+    upgradeWrap.replaceChildren()
+    const groups: Array<readonly [string, readonly (typeof SLOT_UPGRADES)[number][]]> = [
+      ['slot', SLOT_UPGRADES],
+      ['speed', SPEED_UPGRADES],
+    ]
+    for (const [kind, table] of groups) {
+      for (const u of table) {
+        const id = `${kind}-${u.year}`
+        if (r.upgrades.includes(id) || year < u.year) continue
+        const b = el('button', { class: 'chip chip-upgrade', type: 'button', text: `${u.name} ${money(u.cost)}` })
+        b.disabled = state.cash < u.cost
+        b.title = u.effect
+        b.addEventListener('click', () => {
+          const res = buyResearchUpgrade(state, id)
+          if (!res.ok) {
+            showFlash({ d: state.day, k: 'note', t: res.msg })
+            return
+          }
+          techSig = ''
+          candidateSig = ''
+          render()
+          save()
+        })
+        upgradeWrap.append(b)
+      }
+    }
+    if (upgradeWrap.childElementCount === 0) {
+      const next = [...SLOT_UPGRADES, ...SPEED_UPGRADES]
+        .filter((u) => year < u.year)
+        .sort((a, b) => a.year - b.year)[0]
+      upgradeWrap.append(
+        el('span', { class: 'hintline', text: next ? `${next.year} 年起可以扩建槽位 / 速度。` : '暂时没有可扩建项。' }),
+      )
+    }
+  }
+
+  function updateTechHint(): void {
+    const id = techSelect.value
+    const t = id ? TECH_BY_ID.get(id) : undefined
+    if (!t) {
+      techHint.textContent = '没有可开工的技术。'
+      return
+    }
+    const effort = effortForTier(state, t)
+    techHint.textContent = `${effort.months.toFixed(1)} 槽月 · ${money(effort.cost)}${
+      effort.mult === 1 ? '' : ` · ×${effort.mult.toFixed(2)}`
+    }`
+  }
+
   function renderProduct(): void {
-    const candidates = productCandidates(state.day)
+    const candidates = productCandidates(state.day, state.research)
     const sig = candidates.map((c) => c.design.name).join('|')
     if (sig !== candidateSig) {
       candidateSig = sig
@@ -529,13 +681,16 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     pausedTag.textContent =
       pauseReason === 'contract'
         ? '订单完成 · 接下一单'
-        : pauseReason === 'event'
-          ? '自动暂停 · 世界变了'
-          : '已暂停'
+        : pauseReason === 'research'
+          ? '科技完成 · 选下一项'
+          : pauseReason === 'event'
+            ? '自动暂停 · 世界变了'
+            : '已暂停'
     pausedTag.classList.toggle('show', paused && !state.over)
 
     renderProduct()
     renderOrders()
+    renderResearch()
 
     if (state.log.length !== renderedLogCount) {
       renderedLogCount = state.log.length
@@ -600,6 +755,10 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
         } else if (r.contractDone) {
           paused = true
           pauseReason = 'contract'
+          if (state.log.length > sizeBefore) showFlash(state.log[state.log.length - 1]!)
+        } else if (r.researchDone) {
+          paused = true
+          pauseReason = 'research'
           if (state.log.length > sizeBefore) showFlash(state.log[state.log.length - 1]!)
         } else if (r.eraChanged || r.newsCount > 0) {
           paused = true
