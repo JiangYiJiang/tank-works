@@ -1,0 +1,535 @@
+/* 制造局 · 蓝图风格 */
+
+:root {
+  --bg: #0b0d10;
+  --panel: #12151a;
+  --panel-2: #171b21;
+  --line: #232932;
+  --ink: #dde3ea;
+  --dim: #78828f;
+  --faint: #4d5561;
+  --amber: #d9a24e;
+  --green: #7fb069;
+  --red: #d2634a;
+  --cyan: #58b8c9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  color: var(--ink);
+  font-family: 'JetBrains Mono', 'Cascadia Mono', Consolas, 'Microsoft YaHei', monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mf-head,
+.mf-layout {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 28px;
+}
+
+/* ── 头部 ── */
+
+.mf-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: start;
+  gap: 28px;
+  padding-top: 28px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.mf-title h1 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.mf-sub {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--dim);
+  max-width: 46ch;
+}
+
+.mf-status {
+  display: flex;
+  gap: 26px;
+  align-items: flex-start;
+}
+
+.mf-date,
+.mf-cash {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mf-date .mf-v {
+  font-size: 19px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.mf-cash .mf-v {
+  font-size: 19px;
+  color: var(--green);
+  font-variant-numeric: tabular-nums;
+}
+
+.mf-cash.is-warn .mf-v {
+  color: var(--amber);
+}
+
+.mf-cash.is-bad .mf-v {
+  color: var(--red);
+}
+
+.mf-k {
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 0.06em;
+}
+
+.mf-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ── 按钮 / 下拉 ── */
+
+.mf-btn {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 7px 14px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+
+.mf-btn:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.mf-btn-sm {
+  padding: 4px 10px;
+  font-size: 11.5px;
+}
+
+.mf-btn-primary {
+  background: rgba(217, 162, 78, 0.14);
+  border-color: rgba(217, 162, 78, 0.55);
+  color: var(--amber);
+}
+
+.mf-btn-primary:hover {
+  background: rgba(217, 162, 78, 0.24);
+}
+
+.mf-select {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 3px;
+  max-width: 210px;
+}
+
+.mf-select-sm {
+  max-width: 150px;
+  padding: 4px 6px;
+  font-size: 11.5px;
+}
+
+.mf-range {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 3px;
+  background: var(--line);
+  border-radius: 2px;
+  outline: none;
+}
+
+.mf-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--amber);
+  cursor: pointer;
+}
+
+.mf-rangeval {
+  font-size: 11.5px;
+  color: var(--dim);
+  min-width: 74px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 布局 ── */
+
+.mf-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 24px;
+  padding-top: 22px;
+  padding-bottom: 60px;
+  align-items: start;
+}
+
+.mf-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.mf-colhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mf-colhead h2 {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+
+.mf-colhead .mf-select {
+  margin-left: auto;
+}
+
+.mf-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 14px 16px;
+}
+
+.mf-card h2 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+
+.mf-cardhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.mf-cardhead h2 {
+  margin: 0;
+}
+
+.mf-empty {
+  margin: 0;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+/* ── 产线卡 ── */
+
+.mf-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mf-line {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--faint);
+  border-radius: 4px;
+  padding: 13px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mf-line.is-running {
+  border-left-color: var(--green);
+}
+
+.mf-line.is-retooling {
+  border-left-color: var(--amber);
+}
+
+.mf-line-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mf-line-name {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mf-line-name strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.mf-pill {
+  font-size: 11px;
+  color: var(--dim);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 1px 9px;
+  white-space: nowrap;
+}
+
+.mf-line.is-running .mf-pill {
+  color: var(--green);
+  border-color: rgba(127, 176, 105, 0.4);
+}
+
+.mf-line.is-retooling .mf-pill {
+  color: var(--amber);
+  border-color: rgba(217, 162, 78, 0.4);
+}
+
+.mf-line-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.mf-track {
+  height: 4px;
+  background: var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.mf-track-lg {
+  height: 6px;
+  margin: 8px 0 12px;
+}
+
+.mf-fill {
+  height: 100%;
+  background: var(--green);
+  border-radius: 3px;
+  transition: width 0.25s ease;
+}
+
+.mf-fill-hot {
+  background: var(--amber);
+}
+
+.mf-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 14px;
+}
+
+.mf-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.mf-cell .mf-v {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mf-warn {
+  color: var(--red);
+}
+
+.mf-alarm {
+  font-size: 11.5px;
+  color: var(--red);
+  background: rgba(210, 99, 74, 0.08);
+  border-left: 2px solid rgba(210, 99, 74, 0.5);
+  padding: 5px 9px;
+}
+
+.mf-staff,
+.mf-retool {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mf-retool {
+  border-top: 1px dashed var(--line);
+  padding-top: 9px;
+}
+
+/* ── 仓库 ── */
+
+.mf-capsum {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.mf-capsum .mf-v {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mf-mat {
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.mf-mat:last-child {
+  border-bottom: none;
+}
+
+.mf-mat-label,
+.mf-mat-amt {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.mf-mat-label strong {
+  font-size: 12.5px;
+}
+
+.mf-mat-amt strong {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mf-dim {
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.mf-buyrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 7px;
+}
+
+/* ── 学习曲线 ── */
+
+.mf-lc {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 58px;
+  margin-bottom: 10px;
+  padding-bottom: 1px;
+  border-bottom: 1px solid var(--line);
+}
+
+.mf-lcbar {
+  flex: 1;
+  background: linear-gradient(180deg, rgba(88, 184, 201, 0.55), rgba(88, 184, 201, 0.16));
+  border-radius: 1px 1px 0 0;
+  min-width: 0;
+}
+
+.mf-lcmark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--amber);
+  box-shadow: 0 0 6px rgba(217, 162, 78, 0.8);
+}
+
+.mf-note {
+  margin: 9px 0 0;
+  font-size: 11px;
+  color: var(--faint);
+  line-height: 1.5;
+}
+
+/* ── 曲线 ── */
+
+.mf-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 76px;
+  margin-bottom: 12px;
+}
+
+.mf-bar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+}
+
+.mf-barfill {
+  width: 100%;
+  background: linear-gradient(180deg, rgba(217, 162, 78, 0.75), rgba(217, 162, 78, 0.25));
+  border-radius: 1px 1px 0 0;
+}
+
+/* ── 日志 ── */
+
+.mf-log {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.mf-logrow {
+  font-size: 11.5px;
+  color: var(--dim);
+  line-height: 1.5;
+  padding-left: 9px;
+  border-left: 1px solid var(--line);
+}
+
+.mf-logrow:first-child {
+  color: var(--ink);
+  border-left-color: var(--amber);
+}
+
+.is-bankrupt {
+  filter: saturate(0.35);
+}
+
+@media (max-width: 1080px) {
+  .mf-head {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .mf-layout {
+    grid-template-columns: 1fr;
+  }
+}

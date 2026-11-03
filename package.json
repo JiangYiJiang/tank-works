@@ -1,0 +1,36 @@
+{
+  "name": "tank-works",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "description": "坦克厂 —— 1915…1991 从设计局开始的一家小厂",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "check": "tsc --noEmit && tsx probe/design-check.ts && tsx probe/ballistics-check.ts && tsx probe/tech-budget.ts && tsx tools/clock-bench.ts && tsx tools/tank-smoke.ts && tsx tools/game-smoke.ts && tsx tools/research-smoke.ts && tsx tools/manufacture-smoke.ts",
+    "design": "tsx probe/design-check.ts",
+    "ballistics": "tsx probe/ballistics-check.ts",
+    "tech": "tsx probe/tech-budget.ts",
+    "factory": "tsx probe/factory-bench.ts",
+    "fit:pen": "tsx probe/fit/pen.ts",
+    "fit:mobility": "tsx probe/fit/mobility-adapt.ts",
+    "clock": "tsx tools/clock-bench.ts",
+    "smoke:tank": "tsx tools/tank-smoke.ts",
+    "smoke:game": "tsx tools/game-smoke.ts",
+    "smoke:research": "tsx tools/research-smoke.ts",
+    "smoke:mf": "tsx tools/manufacture-smoke.ts",
+    "tech:table": "tsx tools/tech-dump.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "happy-dom": "^20.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.1.0"
+  }
+}

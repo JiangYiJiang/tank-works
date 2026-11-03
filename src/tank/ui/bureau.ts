@@ -1,0 +1,703 @@
+/**
+ * 设计局界面。
+ *
+ * 这一版只做一件事：让六个槽位和四维数字之间的关系变得**可以摸**。
+ * 没有时间、没有钱、没有订单 —— 那些是后面的系统。
+ *
+ * 两个刻意的选择：
+ *   1. 控件只建一次，改数值只重画右半边。否则拖滑条的时候整个 DOM 会被重建，
+ *      滑条会在手指底下消失。
+ *   2. 每次改动立刻整车重算。buildTank 是纯函数、几微秒的事，没必要做增量。
+ */
+
+import {
+  ARMOR_MATERIALS,
+  AUXES,
+  ENGINE_BY_ID,
+  ENGINES,
+  GUNS,
+  HULL_BY_ID,
+  HULLS,
+  SUSPENSION_BY_ID,
+  SUSPENSIONS,
+} from '../data/parts'
+import { HISTORICAL } from '../data/historical'
+import { buildTank } from '../model/build'
+import { solveGeometry } from '../model/geometry'
+import { muzzleVelocity } from '../model/gun'
+import { penetrationAt, losPenetrated, plateDefeated } from '../model/ballistics'
+import type { ArmorMaterialId, ShellType, Tank, TankDesign } from '../types'
+
+/**
+ * 可选弹种。火炮自带一个 shell 字段（这门炮当年配的弹），
+ * 这里允许玩家换成另一颗 —— 换了以后初速会跟着弹重变，穿深从德马尔公式重新算。
+ */
+const SHELL_OPTIONS: ReadonlyArray<{ value: ShellType; label: string }> = [
+  { value: 'ap', label: '穿甲弹（全口径钢芯）' },
+  { value: 'aphe', label: '半穿甲爆破弹' },
+  { value: 'apcbc', label: '被帽穿甲弹' },
+  { value: 'apcr', label: '硬芯穿甲弹' },
+  { value: 'apds', label: '脱壳穿甲弹' },
+  { value: 'apfsds', label: '长杆脱壳穿甲弹' },
+  { value: 'apfsds2', label: '贫铀长杆弹' },
+  { value: 'heat', label: '破甲弹' },
+]
+
+// ────────────────────────────────────────────────────────────
+// 小工具
+// ────────────────────────────────────────────────────────────
+
+type Attrs = Record<string, string | number | boolean | undefined>
+
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  attrs: Attrs = {},
+  ...children: Array<string | Node>
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag)
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === undefined || v === false) continue
+    if (k === 'class') node.className = String(v)
+    else if (k === 'text') node.textContent = String(v)
+    else node.setAttribute(k, v === true ? '' : String(v))
+  }
+  for (const c of children) node.append(c)
+  return node
+}
+
+const nf = (n: number, digits = 0): string =>
+  n.toLocaleString('zh-CN', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+
+/** 每个控件都要能在「载入样车」之后自己刷新显示。 */
+interface Control {
+  node: HTMLElement
+  sync: () => void
+}
+
+interface Option {
+  value: string
+  label: string
+}
+
+// ────────────────────────────────────────────────────────────
+// 历史样车（启动时算一次，分数不会变）
+// ────────────────────────────────────────────────────────────
+
+const SAMPLES = HISTORICAL.map((h) => ({ ...h, tank: buildTank(h.design) }))
+
+function eraBenchmark(year: number, total: number) {
+  const window = SAMPLES.filter((s) => Math.abs(s.year - year) <= 6)
+  const pool = window.length
+    ? window
+    : SAMPLES.slice()
+        .sort((a, b) => Math.abs(a.year - year) - Math.abs(b.year - year))
+        .slice(0, 3)
+  const totals = pool.map((s) => s.tank.score.total).sort((a, b) => a - b)
+  const avg = totals.reduce((s, v) => s + v, 0) / totals.length
+  const best = totals[totals.length - 1] ?? 0
+  const ratio = avg > 0 ? total / avg : 1
+  const verdict = ratio >= 1.3 ? '领先同期' : ratio >= 0.9 ? '同期主流' : ratio >= 0.6 ? '落后半代' : '落后一代以上'
+  return { avg, best, ratio, verdict, count: pool.length }
+}
+
+// ────────────────────────────────────────────────────────────
+// 主界面
+// ────────────────────────────────────────────────────────────
+
+export function mountBureau(root: HTMLElement): void {
+  /**
+   * 默认从 T-34/76 起手 —— 中间点最容易看出「改一处，掉多少」。
+   * 支持 `?tank=虎王` 直接打开某辆历史车，方便复现和截图。
+   */
+  const wanted = new URLSearchParams(location.search).get('tank')
+  const initial =
+    (wanted ? SAMPLES.find((s) => s.name.includes(wanted) || s.design.name.includes(wanted)) : undefined) ??
+    SAMPLES.find((s) => s.design.name === 'T-34/76') ??
+    SAMPLES[0]!
+  const design: TankDesign = structuredClone(initial.design)
+
+  const controls: Control[] = []
+
+  // ── 控件工厂 ──────────────────────────────────────────────
+
+  function selectRow(label: string, options: readonly Option[], get: () => string, set: (v: string) => void): Control {
+    const sel = el('select', { class: 'sel' })
+    for (const o of options) sel.append(el('option', { value: o.value, text: o.label }))
+    sel.value = get()
+    sel.addEventListener('change', () => {
+      set(sel.value)
+      update()
+    })
+    const node = el('label', { class: 'row' }, el('span', { class: 'row-label', text: label }), sel)
+    return {
+      node,
+      sync: () => {
+        sel.value = get()
+      },
+    }
+  }
+
+  function sliderRow(
+    label: string,
+    min: number,
+    max: number,
+    step: number,
+    unit: string,
+    get: () => number,
+    set: (v: number) => void,
+  ): Control {
+    const out = el('span', { class: 'row-value' })
+    const input = el('input', {
+      class: 'rng',
+      type: 'range',
+      min: String(min),
+      max: String(max),
+      step: String(step),
+      value: String(get()),
+    }) as HTMLInputElement
+    const paint = (): void => {
+      out.textContent = `${get()}${unit}`
+      const pct = ((get() - min) / (max - min)) * 100
+      input.style.setProperty('--fill', `${Math.max(0, Math.min(100, pct))}%`)
+    }
+    paint()
+    input.addEventListener('input', () => {
+      set(Number(input.value))
+      paint()
+      update()
+    })
+    const node = el(
+      'label',
+      { class: 'row row-stack' },
+      el('span', { class: 'row-head' }, el('span', { class: 'row-label', text: label }), out),
+      input,
+    )
+    return {
+      node,
+      sync: () => {
+        input.value = String(get())
+        paint()
+      },
+    }
+  }
+
+  function checkRow(label: string, get: () => boolean, set: (v: boolean) => void): Control {
+    const box = el('input', { class: 'chk', type: 'checkbox' }) as HTMLInputElement
+    box.checked = get()
+    box.addEventListener('change', () => {
+      set(box.checked)
+      update()
+    })
+    const node = el('label', { class: 'row row-check' }, box, el('span', { class: 'row-label', text: label }))
+    return {
+      node,
+      sync: () => {
+        box.checked = get()
+      },
+    }
+  }
+
+  // ── 左栏：槽位 ────────────────────────────────────────────
+
+  const slots = el('section', { class: 'panel slots' })
+
+  function group(title: string): void {
+    slots.append(el('div', { class: 'panel-head' }, title))
+  }
+
+  function add(control: Control): void {
+    controls.push(control)
+    slots.append(control.node)
+  }
+
+  group('样车')
+  const presetSel = el('select', { class: 'sel' })
+  presetSel.append(el('option', { value: '', text: '— 载入一辆历史样车 —' }))
+  for (const s of SAMPLES) presetSel.append(el('option', { value: s.design.name, text: `${s.year}  ${s.name}` }))
+  presetSel.addEventListener('change', () => {
+    const picked = SAMPLES.find((s) => s.design.name === presetSel.value)
+    if (!picked) return
+    Object.assign(design, structuredClone(picked.design))
+    // mods 是可选字段：Object.assign 不会删掉源对象上没有的键，
+    // 所以换样车时必须手动清掉上一辆车的弹药改装。
+    if (picked.design.mods) design.mods = structuredClone(picked.design.mods)
+    else delete design.mods
+    for (const c of controls) c.sync()
+    update()
+  })
+  presetSel.value = design.name
+  slots.append(el('label', { class: 'row' }, presetSel))
+
+  group('车体')
+  add(
+    selectRow(
+      '型号',
+      HULLS.map((h) => ({ value: h.id, label: `${h.era}  ${h.name}` })),
+      () => design.hull,
+      (v) => (design.hull = v),
+    ),
+  )
+
+  group('装甲')
+  add(
+    selectRow(
+      '材料',
+      ARMOR_MATERIALS.map((m) => ({ value: m.id, label: `${m.era}  ${m.name}` })),
+      () => design.armor.material,
+      (v) => (design.armor.material = v as ArmorMaterialId),
+    ),
+  )
+  add(
+    selectRow(
+      '炮塔材料',
+      [
+        { value: '', label: '同车体' },
+        ...ARMOR_MATERIALS.map((m) => ({ value: m.id, label: `${m.era}  ${m.name}` })),
+      ],
+      () => design.armor.turretMaterial ?? '',
+      (v) => {
+        if (v) design.armor.turretMaterial = v as ArmorMaterialId
+        else delete design.armor.turretMaterial
+      },
+    ),
+  )
+  add(sliderRow('首上厚度', 0, 350, 1, ' mm', () => design.armor.front, (v) => (design.armor.front = v)))
+  add(sliderRow('首上倾角', 0, 70, 1, '°', () => design.armor.frontSlope, (v) => (design.armor.frontSlope = v)))
+  add(sliderRow('侧面厚度', 0, 160, 1, ' mm', () => design.armor.side, (v) => (design.armor.side = v)))
+  add(sliderRow('炮塔正面', 0, 450, 1, ' mm', () => design.armor.turretFront, (v) => (design.armor.turretFront = v)))
+  add(sliderRow('炮塔倾角', 0, 60, 1, '°', () => design.armor.turretSlope, (v) => (design.armor.turretSlope = v)))
+  add(checkRow('双斜面尖头（IS-3 式）', () => design.armor.pike === true, (v) => (design.armor.pike = v)))
+
+  group('火力')
+  add(
+    selectRow(
+      '火炮',
+      GUNS.map((g) => ({ value: g.id, label: `${g.era}  ${g.name}` })),
+      () => design.gun,
+      (v) => (design.gun = v),
+    ),
+  )
+  add(
+    selectRow(
+      '弹药',
+      [
+        { value: '', label: '原配弹种' },
+        ...SHELL_OPTIONS.map((s) => ({ value: s.value, label: s.label })),
+      ],
+      () => design.mods?.ammo ?? '',
+      (v) => {
+        const mods = (design.mods ??= {})
+        if (v) mods.ammo = v as ShellType
+        else delete mods.ammo
+      },
+    ),
+  )
+
+  group('动力与行走')
+  add(
+    selectRow(
+      '发动机',
+      ENGINES.map((e) => ({ value: e.id, label: `${e.era}  ${e.name}` })),
+      () => design.engine,
+      (v) => (design.engine = v),
+    ),
+  )
+  add(
+    selectRow(
+      '悬挂',
+      SUSPENSIONS.map((s) => ({ value: s.id, label: `${s.era}  ${s.name}` })),
+      () => design.suspension,
+      (v) => (design.suspension = v),
+    ),
+  )
+
+  group('辅助设备')
+  add(
+    selectRow(
+      '套件',
+      AUXES.map((a) => ({ value: a.id, label: `${a.era}  ${a.name}` })),
+      () => design.aux,
+      (v) => (design.aux = v),
+    ),
+  )
+
+  // ── 右栏：读数 ────────────────────────────────────────────
+
+  const totalValue = el('div', { class: 'total-value' })
+  const totalBar = el('div', { class: 'bar-fill' })
+  const scoreCard = el(
+    'section',
+    { class: 'panel score-card' },
+    el(
+      'div',
+      { class: 'score-head' },
+      el('div', { class: 'total-label', text: '总分' }),
+      totalValue,
+      el('div', { class: 'total-scale', text: '/ 10000' }),
+    ),
+    el('div', { class: 'bar track' }, totalBar),
+  )
+
+  const DIMS = [
+    { key: 'armor', label: '装甲' },
+    { key: 'pen', label: '火力' },
+    { key: 'offroad', label: '机动' },
+    { key: 'adapt', label: '适应' },
+  ] as const
+
+  const dimNodes = DIMS.map((d) => {
+    const score = el('span', { class: 'dim-score' })
+    const raw = el('span', { class: 'dim-raw' })
+    const fill = el('div', { class: 'bar-fill' })
+    const node = el(
+      'div',
+      { class: `dim dim-${d.key}` },
+      el('span', { class: 'dim-label', text: d.label }),
+      score,
+      el('div', { class: 'bar track slim' }, fill),
+      raw,
+    )
+    return { key: d.key, score, raw, fill, node }
+  })
+
+  const dimCard = el(
+    'section',
+    { class: 'panel' },
+    el('div', { class: 'panel-head' }, '四维'),
+    ...dimNodes.map((d) => d.node),
+  )
+
+  const PHYS: Array<{ k: string; label: string; unit: string }> = [
+    { k: 'mass', label: '战斗全重', unit: 't' },
+    { k: 'size', label: '尺寸 长×宽×高', unit: 'm' },
+    { k: 'ring', label: '炮塔座圈', unit: 'm' },
+    { k: 'crew', label: '乘员', unit: '人' },
+    { k: 'hpPerTon', label: '吨功率', unit: 'hp/t' },
+    { k: 'groundPressure', label: '接地压力', unit: 'kPa' },
+    { k: 'vMax', label: '公路极速', unit: 'km/h' },
+    { k: 'vOffroad', label: '越野速度', unit: 'km/h' },
+    { k: 'armorFront', label: '首上等效', unit: 'mm' },
+    { k: 'armorTurret', label: '炮塔等效', unit: 'mm' },
+    { k: 'armorSide', label: '侧面等效', unit: 'mm' },
+    { k: 'velocity', label: '炮口初速', unit: 'm/s' },
+    { k: 'pen', label: '穿深 500m', unit: 'mm' },
+    { k: 'rounds', label: '备弹', unit: '发' },
+  ]
+  const physValues = new Map<string, HTMLElement>()
+  const physRows = PHYS.map((p) => {
+    const v = el('span', { class: 'kv-value' })
+    physValues.set(p.k, v)
+    return el(
+      'div',
+      { class: 'kv' },
+      el('span', { class: 'kv-label', text: p.label }),
+      v,
+      el('span', { class: 'kv-unit', text: p.unit }),
+    )
+  })
+  const physCard = el(
+    'section',
+    { class: 'panel' },
+    el('div', { class: 'panel-head' }, '物理量'),
+    el('div', { class: 'kv-grid' }, ...physRows),
+  )
+
+  // 「弹道」：穿深不是一维的数。这一栏故意同时给出「实板」和「视线」两个口径，
+  // 因为它们差一个 cos θ，玩家一旦混用就会算错倾角带来的收益。
+  const BAL_DIST = [100, 500, 1000, 1500, 2000] as const
+  const balCols = BAL_DIST.map((d) => {
+    const bar = el('div', { class: 'bal-bar' })
+    const val = el('div', { class: 'bal-val' })
+    return {
+      d,
+      bar,
+      val,
+      node: el(
+        'div',
+        { class: 'bal-col' },
+        val,
+        el('div', { class: 'bal-track' }, bar),
+        el('div', { class: 'bal-x', text: d >= 1000 ? `${d / 1000}km` : `${d}m` }),
+      ),
+    }
+  })
+
+  const BAL_ANGLES = [0, 30, 45, 60] as const
+  const balSlopes = BAL_ANGLES.map((a) => {
+    const plate = el('span', { class: 'bal-num' })
+    const los = el('span', { class: 'bal-num bal-dim' })
+    return {
+      a,
+      plate,
+      los,
+      node: el(
+        'div',
+        { class: 'bal-sc' },
+        el('div', { class: 'bal-sa', text: `${a}°` }),
+        plate,
+        los,
+      ),
+    }
+  })
+
+  const balMeta = el('div', { class: 'bal-meta' })
+  const balTip = el('div', { class: 'bal-tip' })
+  const balNote = el('div', { class: 'bal-note' })
+  const balCard = el(
+    'section',
+    { class: 'panel bal-card' },
+    el('div', { class: 'panel-head' }, '弹道'),
+    el(
+      'div',
+      { class: 'bal-body' },
+      el('div', { class: 'bal-sub', text: '距离 · 能打穿多厚的垂直板' }),
+      el('div', { class: 'bal-chart' }, ...balCols.map((c) => c.node)),
+      el('div', { class: 'bal-sub', text: '倾角 · 实板厚度 / 视线等效' }),
+      el('div', { class: 'bal-slopes' }, ...balSlopes.map((s) => s.node)),
+      balTip,
+      balMeta,
+      balNote,
+    ),
+  )
+
+  const COST_LABELS = ['材料费', '工时', '工时费', '单台成本'] as const
+  const costValues = new Map<string, HTMLElement>()
+  const costRows = COST_LABELS.map((label) => {
+    const v = el('span', { class: 'kv-value' })
+    costValues.set(label, v)
+    return el(
+      'div',
+      { class: label === '单台成本' ? 'kv kv-strong' : 'kv' },
+      el('span', { class: 'kv-label', text: label }),
+      v,
+    )
+  })
+  const costCard = el('section', { class: 'panel' }, el('div', { class: 'panel-head' }, '单台成本'), ...costRows)
+
+  const flawList = el('ul', { class: 'flaws' })
+  const flawCard = el('section', { class: 'panel' }, el('div', { class: 'panel-head' }, '缺陷'), flawList)
+
+  const eraBody = el('div', { class: 'era-body' })
+  const eraCard = el('section', { class: 'panel era-card' }, el('div', { class: 'panel-head' }, '同期对比'), eraBody)
+
+  // 「耦合与代价」：这一栏是整个设计局存在的理由。
+  // 玩家的每一个选择都会自己长出代价来 —— 这一栏就是把那条链**摊开给他看**，
+  // 否则他只能看到总分变了一点，不知道是被谁吃掉的。
+  const COUPLES = [
+    { k: 'hull', label: '发动机舱 → 车体长度' },
+    { k: 'ring', label: '火炮口径 → 炮塔座圈' },
+    { k: 'slope', label: '首上倾角 → 装甲板面积' },
+    { k: 'cap', label: '悬挂 → 公路极速上限' },
+  ] as const
+  const coupleValues = new Map<string, HTMLElement>()
+  const coupleNotes = new Map<string, HTMLElement>()
+  const coupleRows = COUPLES.map((c) => {
+    const v = el('span', { class: 'kv-value' })
+    const note = el('span', { class: 'couple-note' })
+    coupleValues.set(c.k, v)
+    coupleNotes.set(c.k, note)
+    return el('div', { class: 'couple-row' }, el('span', { class: 'kv-label', text: c.label }), v, note)
+  })
+  const coupleCard = el(
+    'section',
+    { class: 'panel couple-card' },
+    el('div', { class: 'panel-head' }, '耦合与代价'),
+    el('div', { class: 'couple-grid' }, ...coupleRows),
+  )
+
+  const readout = el(
+    'section',
+    { class: 'readout' },
+    scoreCard,
+    dimCard,
+    physCard,
+    balCard,
+    coupleCard,
+    costCard,
+    flawCard,
+    eraCard,
+  )
+
+  // ── 装配 ──────────────────────────────────────────────────
+
+  const header = el(
+    'header',
+    { class: 'topbar' },
+    el(
+      'div',
+      { class: 'brand' },
+      el('h1', { text: '设计局' }),
+      el('p', { class: 'sub', text: '六个槽位决定一切 · 每改一处，都能看到代价落在谁身上' }),
+    ),
+    el(
+      'div',
+      { class: 'hint', text: '提示：先把首上倾角拉到 60°，再把厚度翻倍 —— 看看吨位和工时谁涨得快。' },
+    ),
+  )
+
+  root.append(el('div', { class: 'bureau' }, header, el('main', { class: 'layout' }, slots, readout)))
+
+  update()
+
+  // ── 刷新读数 ──────────────────────────────────────────────
+
+  function update(): void {
+    const tank = buildTank(design)
+    const s = tank.score
+    const p = tank.physical
+
+    totalValue.textContent = nf(s.total)
+    totalBar.style.width = `${Math.min(100, (s.total / 10000) * 100)}%`
+
+    const rawText: Record<(typeof DIMS)[number]['key'], string> = {
+      armor: `${nf(p.armorFront)} mm 等效`,
+      pen: `${nf(p.pen)} mm / 500m`,
+      offroad: `${nf(p.vOffroad)} km/h 越野`,
+      adapt: `${nf(tank.raw.adapt)} 构造分`,
+    }
+
+    for (const d of dimNodes) {
+      const v = s[d.key]
+      d.score.textContent = nf(v)
+      d.raw.textContent = rawText[d.key]
+      d.fill.style.width = `${Math.min(100, (v / 10000) * 100)}%`
+    }
+
+    const set = (k: string, text: string): void => {
+      const node = physValues.get(k)
+      if (node) node.textContent = text
+    }
+    set('mass', nf(p.mass / 1000, 1))
+    set('size', `${p.length.toFixed(2)}×${p.width.toFixed(2)}×${p.height.toFixed(2)}`)
+    set('ring', p.ring.toFixed(2))
+    set('crew', nf(p.crew))
+    set('hpPerTon', p.hpPerTon.toFixed(1))
+    set('groundPressure', nf(p.groundPressure))
+    set('vMax', nf(p.vMax))
+    set('vOffroad', nf(p.vOffroad))
+    set('armorFront', nf(p.armorFront))
+    set('armorTurret', nf(p.armorTurret))
+    set('armorSide', nf(p.armorSide))
+    const gun = GUNS.find((g) => g.id === design.gun)
+    set('velocity', nf(tank.ballistics.v0))
+    set('pen', nf(p.pen))
+    set('rounds', nf(p.rounds))
+
+    // ── 弹道两轴 ──
+    const b = tank.ballistics
+    const maxPen = Math.max(1, b.pen100)
+    BAL_DIST.forEach((d, i) => {
+      const col = balCols[i]!
+      const v =
+        d === 500
+          ? b.pen500
+          : d === 1000
+            ? b.pen1000
+            : d === 2000
+              ? b.pen2000
+              : penetrationAt(b.pen500, d, b.keep2k)
+      col.val.textContent = nf(v)
+      col.bar.style.height = `${Math.max(3, (v / maxPen) * 100)}%`
+    })
+
+    BAL_ANGLES.forEach((a, i) => {
+      const cell = balSlopes[i]!
+      cell.plate.textContent = `${nf(plateDefeated(b.pen500, a, b.slopeExp))} mm`
+      cell.los.textContent = `视线 ${nf(losPenetrated(b.pen500, a, b.slopeExp))}`
+    })
+
+    const shellLabel = SHELL_OPTIONS.find((s) => s.value === b.shell)?.label ?? b.shell
+    balMeta.textContent = `${shellLabel} · 2km 保持 ${Math.round(b.keep2k * 100)}% · 斜板 s=${b.slopeExp.toFixed(2)} · 2km 存速 ${nf(b.v2000)} m/s`
+
+    const los0 = losPenetrated(b.pen500, 0, b.slopeExp)
+    const los60 = losPenetrated(b.pen500, 60, b.slopeExp)
+    const swing = los0 > 0 ? (los60 / los0 - 1) * 100 : 0
+    balTip.textContent =
+      b.shell === 'heat'
+        ? `破甲弹不吃角度：60° 板上照样钻 ${nf(b.plate60)} mm 实板（视线 ${nf(los60)} mm）—— 射流顺着法线走`
+        : Math.abs(swing) < 0.5
+          ? `纯几何：不管板子多斜，能钻的视线厚度都是 ${nf(los0)} mm`
+          : swing > 0
+            ? `被帽咬住斜板：60° 时能钻的视线厚度比 0° 多 ${swing.toFixed(0)}%`
+            : `长杆怕斜板：60° 时视线穿透掉到 0° 的 ${(100 + swing).toFixed(0)}%`
+
+    const los2k = losPenetrated(b.pen2000, 60, b.slopeExp)
+    const through = los2k >= p.armorFront
+    balNote.textContent = `假设对面首上 60°：2km 处能打穿 ${nf(los2k)} mm 视线厚度，本车首上 ${nf(p.armorFront)} mm —— ${through ? '打得穿' : '打不穿'}`
+    balNote.classList.toggle('warn', !through)
+
+    costValues.get('材料费')!.textContent = `¥${nf(tank.cost.material)}`
+    costValues.get('工时')!.textContent = `${nf(tank.cost.hours)} h`
+    costValues.get('工时费')!.textContent = `¥${nf(tank.cost.labor)}`
+    costValues.get('单台成本')!.textContent = `¥${nf(tank.cost.total)}`
+
+    // ── 耦合与代价 ──
+    const hull = HULL_BY_ID.get(design.hull)
+    const sus = SUSPENSION_BY_ID.get(design.suspension)
+    if (hull && sus && gun) {
+      const geo = solveGeometry(hull, gun, ENGINE_BY_ID.get(design.engine)!, sus, design.armor)
+      const put = (k: string, value: string, note: string, warn = false): void => {
+        const v = coupleValues.get(k)
+        const n = coupleNotes.get(k)
+        if (v) v.textContent = value
+        if (n) {
+          n.textContent = note
+          n.classList.toggle('warn', warn)
+        }
+      }
+      const stretch = geo.hullLength - hull.length
+      put(
+        'hull',
+        `${hull.length.toFixed(2)} → ${geo.hullLength.toFixed(2)} m`,
+        stretch > 0.005 ? `发动机舱撑长 +${stretch.toFixed(2)} m` : '发动机塞得下，车体不用拉长',
+        stretch > 0.15,
+      )
+      const ringPush = geo.ring - hull.ring
+      put(
+        'ring',
+        `${hull.ring.toFixed(2)} → ${geo.ring.toFixed(2)} m`,
+        ringPush > 0.005 ? `炮尾顶大 +${ringPush.toFixed(2)} m` : '原来的座圈就装得下',
+        ringPush > 0.05,
+      )
+      const gain = 1 / Math.cos((Math.max(1, design.armor.frontSlope) * Math.PI) / 180)
+      put(
+        'slope',
+        `×${gain.toFixed(2)}`,
+        `${design.armor.frontSlope}° 倾角让这块板变长 ${((gain - 1) * 100).toFixed(0)}%，重量照收`,
+        gain > 1.5,
+      )
+      const capped = sus.vCap - p.vMax
+      put(
+        'cap',
+        `${sus.vCap} km/h`,
+        capped < 1 ? '极速被行走机构卡死，换更大发动机也白搭' : `还有 ${capped.toFixed(0)} km/h 余量`,
+        capped < 1,
+      )
+    }
+
+    flawList.replaceChildren()
+    if (tank.flaws.length === 0) {
+      flawList.append(el('li', { class: 'flaw-none', text: '没有明显缺陷' }))
+    } else {
+      for (const f of tank.flaws) flawList.append(el('li', { text: f }))
+    }
+
+    const era = eraBenchmark(gun?.era ?? 1940, s.total)
+    const tagKind = era.ratio >= 1.3 ? 'up' : era.ratio >= 0.9 ? 'ok' : 'down'
+    eraBody.replaceChildren(
+      el(
+        'div',
+        { class: 'era-row' },
+        el('div', { class: 'era-stat' }, el('span', { class: 'era-key', text: '同期平均' }), el('span', { class: 'era-val', text: nf(era.avg) })),
+        el('div', { class: 'era-stat' }, el('span', { class: 'era-key', text: '同期最好' }), el('span', { class: 'era-val', text: nf(era.best) })),
+      ),
+      el(
+        'div',
+        { class: 'era-verdict' },
+        el('span', { class: `tag tag-${tagKind}`, text: era.verdict }),
+        el('span', { class: 'era-ratio', text: `${(era.ratio * 100).toFixed(0)}% 的同期平均水平` }),
+      ),
+      el('div', { class: 'era-note', text: `对比池：${era.count} 辆该年代历史车（±6 年）` }),
+    )
+  }
+}
