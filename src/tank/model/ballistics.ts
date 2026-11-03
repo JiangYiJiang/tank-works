@@ -36,6 +36,7 @@
  */
 
 import type { Ballistics, GunDef, ShellType, AmmoMods } from '../types'
+import type { TechMods } from './mods'
 import { TUNING, look } from './tuning'
 import { muzzleVelocity, penetration, projectileMass, penetratorMass } from './gun'
 
@@ -114,14 +115,15 @@ export function lineOfSight(t: number, angleDeg: number): number {
   return t / Math.cos(rad)
 }
 
-/** 一门炮 + 一套弹药改装 → 完整弹道剖面。 */
-export function solveBallistics(gun: GunDef, mods?: AmmoMods): Ballistics {
+/** 一门炮 + 一套弹药改装 + 研发科技 → 完整弹道剖面。 */
+export function solveBallistics(gun: GunDef, mods?: AmmoMods, tech?: TechMods): Ballistics {
   const real = resolveGun(gun, mods)
   const shell = real.shell
-  const k2k = keep2kOf(shell, mods)
-  const sExp = slopeExpOf(shell, mods)
-  const pen500 = penetration(real)
-  const v0 = muzzleVelocity(real)
+  // 科技的优先级高于单发改装：改装是这一车的选型，科技是厂里的能力。
+  const k2k = tech?.rangeKeep?.[shell] ?? keep2kOf(shell, mods)
+  const sExp = tech?.slopeExp?.[shell] ?? slopeExpOf(shell, mods)
+  const pen500 = penetration(real, tech)
+  const v0 = muzzleVelocity(real, tech)
   const v2000 = velocityAt(v0, TUNING.gun.keepRefM, k2k, shell)
   return {
     shell,

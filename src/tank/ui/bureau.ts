@@ -626,7 +626,7 @@ export function mountBureau(root: HTMLElement): void {
   // ── 刷新读数 ──────────────────────────────────────────────
 
   function update(): void {
-    const tank = buildTank(design)
+    const tank = buildTank(design, tech?.mods)
     const s = tank.score
     const p = tank.physical
 

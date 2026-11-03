@@ -26,7 +26,8 @@ import {
 import { AUX_BY_ID, ARMOR_MATERIALS, AUXES, ENGINES, ENGINE_BY_ID, GUNS, GUN_BY_ID, HULLS, HULL_BY_ID, MATERIAL_BY_ID, SUSPENSION_BY_ID, SUSPENSIONS } from '../data/parts'
 import { dateOf } from './calendar'
 import { pushLog, type GameState, type ResearchState } from './state'
-import type { TankDesign } from '../types'
+import type { ShellType, TankDesign } from '../types'
+import type { TechMods } from '../model/mods'
 
 /** 一个月的平均天数。用它把「天」换成「槽月」。 */
 export const DAYS_PER_MONTH = 30.4375
@@ -312,6 +313,54 @@ export function advanceResearch(state: GameState, day: number, days: number): Re
   return out
 }
 
+/** 从当前世代往下找，最近一个设了该系数的世代。 */
+function latestFn(r: ResearchState, ladder: string, key: string): number | undefined {
+  for (let tier = masteredOf(r, ladder); tier >= 1; tier--) {
+    const t = TECH_BY_ID.get(`${ladder}.${tier}`)
+    const v = t?.fn?.[key]
+    if (v !== undefined) return v
+  }
+  return undefined
+}
+
+/**
+ * 把已掌握的技术翻译成模型覆盖。
+ * 只作用于玩家车；19 辆历史校准车仍然用 TUNING 默认值。
+ */
+export function techMods(r: ResearchState): TechMods {
+  const slopeExp: Partial<Record<ShellType, number>> = {}
+  const rangeKeep: Partial<Record<ShellType, number>> = {}
+  const families: Array<[string, ShellType[]]> = [
+    ['ammo.ap', ['ap', 'aphe', 'apcbc']],
+    ['ammo.apcr', ['apcr']],
+    ['ammo.apfsds', ['apfsds', 'apfsds2']],
+  ]
+  for (const [ladder, shells] of families) {
+    const s = latestFn(r, ladder, 'slopeExp')
+    const k = latestFn(r, ladder, 'rangeKeep')
+    for (const shell of shells) {
+      if (s !== undefined) slopeExp[shell] = s
+      if (k !== undefined) rangeKeep[shell] = k
+    }
+  }
+
+  // 发射药是累乘的：双基 +8%，三基再 +6%
+  let charge = 1
+  for (let tier = 1; tier <= masteredOf(r, 'ammo.prop'); tier++) {
+    const t = TECH_BY_ID.get(`ammo.prop.${tier}`)
+    const v = t?.fn?.charge
+    if (v !== undefined) charge *= v
+  }
+
+  return {
+    labor: techLimits(r).labor,
+    charge,
+    slopeExp,
+    rangeKeep,
+    heatPerCaliber: latestFn(r, 'ammo.heat', 'heatPerCaliber'),
+  }
+}
+
 /**
  * 给设计局的科技快照：哪些零件能选、上限是多少。
  * 设计局是独立页面，只能通过 localStorage 拿到这份快照。
@@ -322,6 +371,7 @@ export interface TechSnapshot {
   year: number
   mastered: Record<string, number>
   limits: TechLimits
+  mods: TechMods
   parts: {
     hull: string[]
     material: string[]
@@ -340,6 +390,7 @@ export function techSnapshot(state: GameState): TechSnapshot {
     year: dateOf(state.day).year,
     mastered: { ...r.mastered },
     limits,
+    mods: techMods(r),
     parts: {
       hull: HULLS.filter((h) => partAvailable(h.era, 'armor', r)).map((h) => h.id),
       material: ARMOR_MATERIALS.filter((m) => partAvailable(m.era, 'armor', r)).map((m) => m.id),

@@ -14,7 +14,7 @@
 
 import { buildTank } from '../model/build'
 import { designYear } from '../model/era'
-import { designCheck } from './research'
+import { designCheck, techMods } from './research'
 import { HISTORICAL } from '../data/historical'
 import { TOTAL_DAYS, dateOf, formatDate } from './calendar'
 import {
@@ -170,7 +170,7 @@ export function acceptOffer(state: GameState, offerId: string): AcceptResult {
   if (!offer) return { ok: false, msg: '这份标已经不在桌上了' }
   if (offer.deadline <= state.day) return { ok: false, msg: '这份标已经过期了' }
 
-  const tank = buildTank(state.design)
+  const tank = buildTank(state.design, techMods(state.research))
   const gate = designCheck(state.design, state.research)
   if (!gate.ok) return { ok: false, msg: gate.reason }
   const limitYear = dateOf(state.day).year + PRODUCT_LEAD_YEARS

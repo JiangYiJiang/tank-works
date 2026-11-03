@@ -23,6 +23,7 @@ import {
   slotsOf,
   speedOf,
   startResearch,
+  techMods,
   techSnapshot,
 } from '../sim/research'
 import { SLOT_UPGRADES, SPEED_UPGRADES, TECH_BY_ID } from '../data/tech'
@@ -534,7 +535,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     productSelect.value = exact ? state.design.name : '__custom__'
     productSelect.disabled = state.contract !== null
 
-    const tank = buildTank(state.design)
+    const tank = buildTank(state.design, techMods(state.research))
     productStats.replaceChildren(
       statCell('装甲', `${Math.round(tank.raw.armor)} mm`),
       statCell('火力', `${Math.round(tank.raw.pen)} mm`),
@@ -592,7 +593,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       offersWrap.append(el('p', { class: 'hintline', text: '桌上暂时没有标，等下一个时代。' }))
       return
     }
-    const tank = buildTank(state.design)
+    const tank = buildTank(state.design, techMods(state.research))
     for (const o of state.offers) {
       const ok = productMeets(tank, o)
       const btn = el('button', { class: 'chip chip-accept', text: ok ? '接单' : '不达标' })

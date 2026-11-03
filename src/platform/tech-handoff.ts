@@ -34,6 +34,7 @@ export function readTech(): TechSnapshot | null {
     const o = JSON.parse(raw) as Partial<TechSnapshot>
     const limits = o.limits
     const parts = o.parts
+    const mods = o.mods
     if (
       !num(o.at) ||
       !num(o.year) ||
@@ -46,6 +47,7 @@ export function readTech(): TechSnapshot | null {
       !num(limits.barrelMax) ||
       !num(limits.chargeMax) ||
       !num(limits.labor) ||
+      (mods !== undefined && (!num(mods.labor) || !num(mods.charge))) ||
       !parts ||
       !strArray(parts.hull) ||
       !strArray(parts.material) ||
@@ -56,7 +58,7 @@ export function readTech(): TechSnapshot | null {
     ) {
       return null
     }
-    return o as TechSnapshot
+    return { ...(o as TechSnapshot), mods: mods ?? { labor: 1, charge: 1 } }
   } catch {
     return null
   }

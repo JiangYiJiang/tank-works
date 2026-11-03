@@ -9,10 +9,11 @@
  */
 
 import { dayOf } from '../src/tank/sim/calendar'
-import { advanceResearch, availableTechs, buyResearchUpgrade, designCheck, effortForTier, monthlyUpkeep, slotsOf, speedOf, startResearch, techSnapshot } from '../src/tank/sim/research'
+import { advanceResearch, availableTechs, buyResearchUpgrade, designCheck, effortForTier, monthlyUpkeep, slotsOf, speedOf, startResearch, techMods, techSnapshot } from '../src/tank/sim/research'
 import { STARTING_TECH, TECH_BY_ID } from '../src/tank/data/tech'
 import { HISTORICAL } from '../src/tank/data/historical'
-import { createGame } from '../src/tank/sim/state'
+import { createGame, createResearch } from '../src/tank/sim/state'
+import { buildTank } from '../src/tank/model/build'
 import { decodeSave, encodeSave } from '../src/tank/sim/save'
 
 let pass = 0
@@ -83,6 +84,29 @@ check('快照限制倾角 20°', snap0.limits.slopeMax === 20)
 check('快照不放大口径炮', !snap0.parts.gun.includes('kwk43'))
 check('快照不放复合装甲', !snap0.parts.material.includes('nera'))
 check('研发后 A7V 车体进快照', techSnapshot(g).parts.hull.includes('a7v'))
+
+// ── 4c. 科技覆盖（只作用于玩家车） ────────────────────────
+const mr = createResearch()
+mr.mastered['armor.form'] = 2
+mr.mastered['ammo.prop'] = 2
+mr.mastered['ammo.ap'] = 2
+mr.mastered['ammo.heat'] = 2
+const mods = techMods(mr)
+check('焊接把工时打到 ×0.85', mods.labor === 0.85, String(mods.labor))
+check('双基发射药 ×1.08', Math.abs(mods.charge - 1.08) < 1e-9, String(mods.charge))
+check('被帽弹斜板响应 0.85', mods.slopeExp?.ap === 0.85, String(mods.slopeExp?.ap))
+check('破甲弹口径系数 1.8', mods.heatPerCaliber === 1.8, String(mods.heatPerCaliber))
+
+const baseTank = buildTank(ft.design)
+const tunedTank = buildTank(ft.design, mods)
+check('科技让工时变少', tunedTank.cost.hours < baseTank.cost.hours, `${tunedTank.cost.hours} vs ${baseTank.cost.hours}`)
+check('科技让被帽弹更吃斜板', tunedTank.ballistics.slopeExp < baseTank.ballistics.slopeExp, `${tunedTank.ballistics.slopeExp} vs ${baseTank.ballistics.slopeExp}`)
+check('科技让初速更高', tunedTank.ballistics.v0 > baseTank.ballistics.v0, `${tunedTank.ballistics.v0} vs ${baseTank.ballistics.v0}`)
+
+const heatDesign = { ...JSON.parse(JSON.stringify(ft.design)), mods: { ammo: 'heat' as const } }
+const heatBase = buildTank(heatDesign)
+const heatTuned = buildTank(heatDesign, mods)
+check('破甲弹穿深按科技的口径倍数', heatTuned.raw.pen > heatBase.raw.pen, `${heatTuned.raw.pen} vs ${heatBase.raw.pen}`)
 
 // ── 5. 升级：槽位 / 速度 ──────────────────────────────────
 g.day = dayOf(1934, 1, 1)

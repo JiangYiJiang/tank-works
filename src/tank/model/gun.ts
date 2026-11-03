@@ -18,6 +18,7 @@
  */
 
 import type { GunDef } from '../types'
+import type { TechMods } from './mods'
 import { TUNING, look } from './tuning'
 
 /** 弹丸全重 kg（含脱壳弹被丢掉的那部分）。 */
@@ -36,11 +37,11 @@ export function penetratorDiameter(gun: GunDef): number {
   return gun.caliber * look(TUNING.gun.coreRatio, gun.shell, 1)
 }
 
-/** 炮口初速 m/s。 */
-export function muzzleVelocity(gun: GunDef): number {
+/** 炮口初速 m/s。tech.charge 是发射药科技带来的能量倍率。 */
+export function muzzleVelocity(gun: GunDef, tech?: TechMods): number {
   const t = TUNING.gun
   const m = projectileMass(gun)
-  const energy = gun.charge * Math.pow(gun.caliber, 3) * gun.barrelCalibers
+  const energy = gun.charge * (tech?.charge ?? 1) * Math.pow(gun.caliber, 3) * gun.barrelCalibers
   return Math.sqrt((t.velocityK * energy) / m)
 }
 
@@ -55,14 +56,15 @@ function caliberEff(caliber: number): number {
 }
 
 /** 500m 处穿深 mm RHAe（对均质钢，入射角 0°）。 */
-export function penetration(gun: GunDef): number {
+export function penetration(gun: GunDef, tech?: TechMods): number {
   const t = TUNING.gun
   if (gun.shell === 'heat') {
     // 破甲弹靠炸药而不是动能，穿深只看口径，而且**不随距离衰减**
     // 1.0 是早期破甲弹的水平（≈1 倍口径）；研发局把它推到 1.8 / 2.8 / 3.4
-    return look(t.heatPerCaliberByShell, gun.shell, 1) * gun.caliber
+    const perCaliber = tech?.heatPerCaliber ?? look(t.heatPerCaliberByShell, gun.shell, 1)
+    return perCaliber * gun.caliber
   }
-  const v = muzzleVelocity(gun)
+  const v = muzzleVelocity(gun, tech)
   const m = penetratorMass(gun)
   const d = penetratorDiameter(gun)
   const k = look(t.deMarreK, gun.shell, 4)

@@ -31,6 +31,7 @@ import { solveGeometry } from './geometry'
 import { penetration } from './gun'
 import { solveMass } from './mass'
 import { solveMobility } from './mobility'
+import { NO_TECH, type TechMods } from './mods'
 import { rawDimsFrom, scoreDims } from './score'
 import { TUNING } from './tuning'
 
@@ -43,7 +44,7 @@ export function crewCount(ringM: number, crewMin: number): number {
   return Math.max(crewMin, 2 + turret)
 }
 
-export function buildTank(design: TankDesign): Tank {
+export function buildTank(design: TankDesign, tech: TechMods = NO_TECH): Tank {
   const hull = need(HULL_BY_ID, design.hull, '车体')
   const gun = need(GUN_BY_ID, design.gun, '火炮')
   const engine = need(ENGINE_BY_ID, design.engine, '动力包')
@@ -67,7 +68,7 @@ export function buildTank(design: TankDesign): Tank {
 
   // 弹药改装会换掉弹种，但不会改变这门炮本身（口径、倍径、装药都不动）
   const realGun = resolveGun(gun, design.mods)
-  const ballistic = solveBallistics(gun, design.mods)
+  const ballistic = solveBallistics(gun, design.mods, tech)
 
   const physical: TankPhysical = {
     mass: mass.total,
@@ -82,7 +83,7 @@ export function buildTank(design: TankDesign): Tank {
     armorFront: prot.hull,
     armorTurret: prot.turret,
     armorSide: prot.side,
-    pen: penetration(realGun),
+    pen: penetration(realGun, tech),
     caliber: gun.caliber,
     crew,
     rounds: gun.rounds,
@@ -90,7 +91,7 @@ export function buildTank(design: TankDesign): Tank {
 
   const raw = rawDimsFrom(physical, adapt.total)
   const score = scoreDims(raw)
-  const cost = solveCost(design, mass, material.costPerKg)
+  const cost = solveCost(design, mass, material.costPerKg, tech.labor)
   const flaws = findFlaws(physical, design, crew)
 
   return { design, physical, raw, score, cost, flaws, ballistics: ballistic }
@@ -100,6 +101,7 @@ function solveCost(
   design: TankDesign,
   mass: ReturnType<typeof solveMass>,
   armorPricePerKg: number,
+  laborMult: number,
 ): TankCost {
   const c = TUNING.cost
   const engine = need(ENGINE_BY_ID, design.engine, '动力包')
@@ -115,7 +117,7 @@ function solveCost(
   const raw = armorCost + engineCost + gunCost + restCost
 
   const castFactor = material.id === 'cast' ? c.castDiscount : 1
-  const hours = (c.hoursBase + mass.total * c.hoursPerKg) * castFactor * hull.structureFactor
+  const hours = (c.hoursBase + mass.total * c.hoursPerKg) * castFactor * hull.structureFactor * laborMult
   const labor = hours * c.laborRate
 
   return {
