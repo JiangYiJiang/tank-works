@@ -43,7 +43,7 @@ import {
   upgradeLine,
 } from '../sim/lines'
 import { materialFactorText } from '../sim/market'
-import { readAdopted } from '../../platform/design-handoff'
+import { readAdopted, writeDraft, clearDraft } from '../../platform/design-handoff'
 import { LEGACY_SAVE_KEYS, SAVE_KEY } from '../../platform/save-keys'
 import { writeTech } from '../../platform/tech-handoff'
 import type { SaveStore } from '../../platform/storage'
@@ -189,6 +189,9 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   const adoptNote = el('span', { class: 'adopt-note' })
   const adoptRow = el('div', { class: 'adopt-row' }, adoptBtn, adoptNote)
   adoptBtn.addEventListener('click', importAdopted)
+  const designBtn = el('button', { class: 'chip chip-design', type: 'button' }, '设计本厂车 →')
+  designBtn.addEventListener('click', openDesigner)
+  const designRow = el('div', { class: 'design-row' }, designBtn)
 
   const researchInfo = el('div', { class: 'research-info' })
   const projectsWrap = el('div', { class: 'projects' })
@@ -232,6 +235,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '产品' }), productSelect),
       productStats,
       productHint,
+      designRow,
       adoptRow,
     ),
     el('section', { class: 'panel' }, el('h2', { text: '订单' }), offersWrap, contractWrap),
@@ -356,6 +360,76 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     save()
   }
 
+  function openDesigner(): void {
+    if (state.contract) {
+      showFlash({ d: state.day, k: 'note', t: '订单执行中，交完再改产品设计。' })
+      return
+    }
+    if (state.over) return
+    if (!writeDraft(state.design)) {
+      showFlash({ d: state.day, k: 'note', t: '浏览器不允许写本地存储，设计局打不开。' })
+      return
+    }
+
+    const closeBtn = el('button', { class: 'design-close', type: 'button', text: '× 关闭' })
+    const frame = el('iframe', {
+      class: 'design-frame',
+      title: '设计本厂车',
+      src: './tank.html?embedded=1',
+    })
+    const overlay = el(
+      'div',
+      { class: 'design-overlay' },
+      el(
+        'div',
+        { class: 'design-bar' },
+        el('div', { class: 'design-title' }, el('strong', { text: '设计本厂车' }), el('span', { text: '改完点「应用到本局」' })),
+        closeBtn,
+      ),
+      frame,
+    )
+
+    let onMessage: ((e: MessageEvent) => void) | null = null
+    const close = (): void => {
+      if (onMessage) window.removeEventListener('message', onMessage)
+      overlay.remove()
+      clearDraft()
+    }
+    closeBtn.addEventListener('click', close)
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) close()
+    })
+
+    onMessage = (e: MessageEvent) => {
+      if (e.origin !== location.origin) return
+      const data = e.data as { type?: string; design?: GameState['design'] } | null
+      if (!data || data.type !== 'tank-works:design' || !data.design) return
+      const next = data.design
+      try {
+        buildTank(next)
+      } catch {
+        showFlash({ d: state.day, k: 'note', t: '这份设计的数据不完整，检查一下六个槽位。' })
+        return
+      }
+      const gate = designCheck(next, state.research)
+      if (!gate.ok) {
+        showFlash({ d: state.day, k: 'note', t: `这辆车现在造不出来：${gate.reason}` })
+        return
+      }
+      state.design = JSON.parse(JSON.stringify(next)) as typeof state.design
+      pushLog(state, { d: state.day, k: 'note', t: `设计本厂车：改为「${next.name}」。` })
+      close()
+      candidateSig = ''
+      offerSig = ''
+      dirty = true
+      render()
+      save()
+      showFlash({ d: state.day, k: 'note', t: `产品改成「${next.name}」；下次接单时换型。` })
+    }
+    window.addEventListener('message', onMessage)
+    root.append(overlay)
+  }
+
   function importAdopted(): void {
     if (state.contract) {
       showFlash({ d: state.day, k: 'note', t: '订单执行中，交完再换产品。' })
@@ -363,7 +437,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     }
     const a = readAdopted()
     if (!a) {
-      showFlash({ d: state.day, k: 'note', t: '设计局里还没有采用的车：去 /tank.html 点「采用此设计」。' })
+      showFlash({ d: state.day, k: 'note', t: '还没有采用的设计；也可以直接点「设计本厂车」在本局设计。' })
       return
     }
     try {
@@ -727,6 +801,8 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     }
     productSelect.value = exact ? state.design.name : '__custom__'
     productSelect.disabled = state.contract !== null
+    designBtn.disabled = state.contract !== null || state.over
+    designBtn.title = state.contract ? '订单执行中不能改产品' : '打开设计局，改完直接应用到本局'
 
     const tank = buildTank(state.design, techMods(state.research))
     productStats.replaceChildren(
@@ -1078,6 +1154,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
 
   render()
   publishTech()
+  if (new URLSearchParams(location.search).get('design') === '1') window.setTimeout(openDesigner, 80)
   requestAnimationFrame(rafLoop)
 
   /*

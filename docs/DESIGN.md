@@ -1,6 +1,6 @@
 # 坦克厂 · 游戏设计文档
 
-> 版本 `v1.8` · 最后更新 2026-11-03 · 工作区：`F:\tankfactory`
+> 版本 `v1.9` · 最后更新 2026-11-03 · 工作区：`F:\tankfactory`
 > 状态：设计局、研发局、制造局都已跑通；游说局 M3（竞品/压价/贿赂/信誉/阵营）；贷款、关厂报告、多产线、料价、尺度 v1、主动防御、全部 `fn` 已接。
 > 设计局的车可以交给主循环去卖；科技树已经接进游戏，设计局按科技快照过滤零件，弹道系数随科技变化；
 > 抗破、装填、倒车、俯仰已经进入设计局读数，破甲弹按抗破判定。
@@ -1149,6 +1149,15 @@ designYear = max(车体 era, 炮 era, 发动机 era, 悬挂 era, 辅助 era, 材
 
 **还没做的**：零件没有按已掌握科技过滤之前，设计局只能靠「成交时拒绝」——现在这一步已经由科技快照补上（§7.12）。
 
+**M3：游戏内设计（推荐路径）**。产品面板「设计本厂车 →」打开一个全屏覆盖层，内嵌 `tank.html?embedded=1`：
+
+- 打开前把当前 `state.design` 写进 `tank-works.draft.v1`，设计局用它做起点；
+- embedded 模式隐藏「去主循环」，按钮改成「应用到本局」；
+- 点应用后 `postMessage` 回主循环；主循环再用 `buildTank()` + `designCheck()` 验一遍，通过才替换 `state.design`；
+- 关闭覆盖层清草稿；科技快照仍由主循环发布，所以零件表按这一局的科技过滤。
+
+独立 `/tank.html` 保留为预览 / 调试页；游戏内入口才是正式路径。
+
 ---
 
 ### 8.10 多产线、料价与产线升级（M3）
@@ -1533,8 +1542,8 @@ v1–v6 老存档可以读：产品默认 FT-17，没有产线与订单，研发
 | 页面 | 路径 | 入口文件 | 用途 | 状态 |
 |---|---|---|---|---|
 | 主菜单 | `/` | `index.html` / `src/tank/menu-entry.ts` | 继续存档、新游戏、四个入口 | ✅ 入口页 |
-| 游戏壳 | `/game.html` | `src/tank/game/main.ts` | 日历、产品、招标、产线、现金、研发 | ✅ 可玩闭环 |
-| 设计局 | `/tank.html` | `src/tank/main.ts` | 拼车、看四维、看代价、按科技过滤、把车交给主循环 | ✅ 可用 |
+| 游戏壳 | `/game.html` | `src/tank/game/main.ts` | 日历、产品、招标、产线、现金、研发；产品面板进设计覆盖层 | ✅ 可玩闭环 |
+| 设计局（预览） | `/tank.html` | `src/tank/main.ts` | 拼车、看四维、看代价、按科技过滤；游戏内用 `?embedded=1` | ✅ 预览 / 调试 |
 | 研发局 | `/research.html` | `src/tank/research-main.ts` | 科技树、超前/追赶、落后年数 | ✅ 可用 |
 | 制造局 | `/manufacture.html` | `src/tank/manufacture-main.ts` | 产线、仓库、学习曲线 | ✅ 独立试算页（主循环同一模型） |
 
@@ -1808,7 +1817,7 @@ npm install           # 首次
 npm run dev           # 开发服务器 127.0.0.1:5273，四个页面
 npm run build         # 构建到 dist/（四个入口，相对路径）
 npm run preview       # 预览打包结果
-npm run check         # 全部检查：类型 + 校准 + 节奏 + 五套冒烟 + 研发 + 指标 + 经济 + 尺度（420 项断言）
+npm run check         # 全部检查：类型 + 校准 + 节奏 + 五套冒烟 + 研发 + 指标 + 经济 + 尺度（423 项断言）
 
 npm run design        # 19 辆历史车校准表
 npm run ballistics    # 弹道两轴表
@@ -1821,8 +1830,8 @@ npm run scale         # 经济尺度：8 个时代的毛利 / 工期 / 首单技
 npm run economy       # 经济闭环验收（竞品、压价、贿赂、审计、交付、回款）
 
 npm run smoke:tank    # 设计局界面 36 项
-npm run smoke:game    # 游戏壳界面 99 项
-npm run menu          # 主菜单界面 15 项
+npm run smoke:game    # 游戏壳界面 101 项
+npm run menu          # 主菜单界面 16 项
 npm run smoke:research # 研发局界面 27 项
 npm run smoke:mf      # 制造局界面 21 项
 

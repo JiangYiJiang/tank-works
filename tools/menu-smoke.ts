@@ -47,7 +47,9 @@ check('没有存档时继续按钮禁用', (q(emptyRoot, '.menu-continue') as HT
 check('没有存档时按钮写「还没有存档」', txt(emptyRoot, '.menu-continue').includes('还没有存档'))
 check('没有存档时新游戏是主按钮', txt(emptyRoot, '.menu-new').includes('开始新游戏'))
 check('四个入口都在', all(emptyRoot, '.module-card').length === 4, `实际 ${all(emptyRoot, '.module-card').length}`)
-check('入口链接正确', all(emptyRoot, '.module-card').map((a) => a.getAttribute('href')).join(',') === './game.html,./tank.html,./research.html,./manufacture.html')
+const linked = all(emptyRoot, 'a.module-card').map((a) => a.getAttribute('href'))
+check('只有主循环是链接', linked.join(',') === './game.html', linked.join(','))
+check('三个局标成游戏内', all(emptyRoot, 'div.module-card').length === 3)
 
 // ── 2. 有存档 ─────────────────────────────────────────────
 const store = createMemoryStorage()

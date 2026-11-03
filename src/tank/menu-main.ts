@@ -60,17 +60,18 @@ function moduleCard(
   index: string,
   title: string,
   desc: string,
-  href: string,
+  href: string | undefined,
   note: string,
 ): HTMLElement {
-  return el(
-    'a',
-    { class: 'module-card', href },
+  const children = [
     el('div', { class: 'module-top' }, el('span', { class: 'module-index', text: index }), el('span', { class: 'module-arrow', text: '↗' })),
     el('h3', { text: title }),
     el('p', { text: desc }),
     el('span', { class: 'module-note', text: note }),
-  )
+  ]
+  return href
+    ? el('a', { class: 'module-card', href }, ...children)
+    : el('div', { class: 'module-card' }, ...children)
 }
 
 export function mountMenu(root: HTMLElement, opts: MenuOptions = {}): void {
@@ -201,14 +202,14 @@ export function mountMenu(root: HTMLElement, opts: MenuOptions = {}): void {
   const modules = el(
     'section',
     { class: 'modules' },
-    el('div', { class: 'modules-head' }, el('span', { text: '四个入口' }), el('span', { class: 'line' })),
+    el('div', { class: 'modules-head' }, el('span', { text: '游戏内四个局' }), el('span', { class: 'line' })),
     el(
       'div',
       { class: 'module-grid' },
-      moduleCard('01', '主循环', '接单、备料、排产、交付、回款；研发、贷款、关厂报告。', './game.html', '继续这一局'),
-      moduleCard('02', '设计局', '六个槽位、四维评分、弹道三轴、成本与缺陷；可交给主循环。', './tank.html', '设计一辆车'),
-      moduleCard('03', '研发局', '159 条科技树，量「按部就班」落后几年；读图工具。', './research.html', '看科技前沿'),
-      moduleCard('04', '制造局', '多线、仓库、学习曲线、人力与班次；独立试算页。', './manufacture.html', '试算产能'),
+      moduleCard('01', '主循环', '接单、备料、排产、交付、回款；研发、贷款、关厂报告。', './game.html', '进入这一局'),
+      moduleCard('02', '设计局', '六个槽位、四维评分、弹道三轴、成本与缺陷。', undefined, '游戏内 · 产品面板「设计本厂车」'),
+      moduleCard('03', '研发局', '159 条科技树，超前更贵、落后打折；槽位与速度升级。', undefined, '游戏内 · 研发面板'),
+      moduleCard('04', '制造局', '多线、仓库、学习曲线、人力与班次；游说局在同一局里。', undefined, '游戏内 · 产线 / 订单面板'),
     ),
   )
 
@@ -221,6 +222,8 @@ export function mountMenu(root: HTMLElement, opts: MenuOptions = {}): void {
       el('a', { href: 'README.md', target: '_blank', rel: 'noreferrer' }, 'README'),
       el('a', { href: 'docs/DESIGN.md', target: '_blank', rel: 'noreferrer' }, '设计文档'),
       el('a', { href: 'docs/STATUS.md', target: '_blank', rel: 'noreferrer' }, '进度 / 待办'),
+      el('a', { href: './tank.html', target: '_blank', rel: 'noreferrer' }, '独立设计页'),
+      el('a', { href: './research.html', target: '_blank', rel: 'noreferrer' }, '研发规划页'),
       el('a', { href: 'https://github.com/JiangYiJiang/tank-works', target: '_blank', rel: 'noreferrer' }, 'GitHub'),
     ),
     el('span', { class: 'foot-note', text: '本地运行 · 无运行时依赖 · 存档在本机 localStorage' }),

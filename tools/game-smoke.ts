@@ -71,6 +71,7 @@ check('每份标都有竞品', all(root, '.offer-rival').length === 3, `实际 $
 check('有压价与贿赂按钮', all(root, '.chip-undercut').length === 3 && all(root, '.chip-bribe').length === 3)
 check('厂子面板显示信誉', root.textContent!.includes('信誉'))
 check('标上显示客户现役', all(root, '.offer-force').length === 3 && txt(root, '.offer-force').includes('现役'))
+check('游戏内有设计本厂车按钮', (q(root, '.chip-design') as HTMLButtonElement).disabled === false)
 check('开局国家是法国', (q(root, '.home-select') as HTMLSelectElement).value === 'fra')
 check('开局国家可选', (q(root, '.home-select') as HTMLSelectElement).disabled === false)
 
@@ -272,6 +273,7 @@ check('接单后招标列表清空', all(root3, '.offer').length === 0)
 check('接单后备料花钱', cashOf(root3) < cash0, `${cash0} → ${cashOf(root3)}`)
 check('订单执行中不能换产品', (q(root3, '.product-select') as HTMLSelectElement).disabled === true)
 check('产线在运转', root3.textContent!.includes('产线 1 条 · 运转中'), txt(root3, '.contract-line'))
+check('订单执行中设计按钮禁用', (q(root3, '.chip-design') as HTMLButtonElement).disabled === true)
 
 const raw3 = store3.read('tank-works.save.v7')
 const saved3 = raw3 ? JSON.parse(raw3) : null

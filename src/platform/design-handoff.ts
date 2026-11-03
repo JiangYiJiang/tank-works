@@ -10,6 +10,8 @@
 import type { TankDesign } from '../tank/types'
 
 export const ADOPTED_DESIGN_KEY = 'tank-works.design.v1'
+/** 主循环打开「设计本厂车」时，先把当前设计放进这个草稿位。 */
+export const DRAFT_DESIGN_KEY = 'tank-works.draft.v1'
 
 export interface AdoptedDesign {
   /** 采用时刻（毫秒），用来区分「新采用的一份」和旧的 */
@@ -25,6 +27,21 @@ function store(): Storage | null {
   }
 }
 
+function isDesignLike(d: unknown): d is TankDesign {
+  if (!d || typeof d !== 'object') return false
+  const x = d as Partial<TankDesign>
+  return (
+    typeof x.name === 'string' &&
+    typeof x.hull === 'string' &&
+    typeof x.gun === 'string' &&
+    typeof x.engine === 'string' &&
+    typeof x.suspension === 'string' &&
+    typeof x.aux === 'string' &&
+    !!x.armor &&
+    typeof x.armor.material === 'string'
+  )
+}
+
 export function readAdopted(): AdoptedDesign | null {
   const s = store()
   if (!s) return null
@@ -32,22 +49,8 @@ export function readAdopted(): AdoptedDesign | null {
     const raw = s.getItem(ADOPTED_DESIGN_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as Partial<AdoptedDesign>
-    const d = parsed?.design
-    if (
-      typeof parsed?.at !== 'number' ||
-      !d ||
-      typeof d.name !== 'string' ||
-      typeof d.hull !== 'string' ||
-      typeof d.gun !== 'string' ||
-      typeof d.engine !== 'string' ||
-      typeof d.suspension !== 'string' ||
-      typeof d.aux !== 'string' ||
-      !d.armor ||
-      typeof d.armor.material !== 'string'
-    ) {
-      return null
-    }
-    return { at: parsed.at, design: d as TankDesign }
+    if (typeof parsed?.at !== 'number' || !isDesignLike(parsed.design)) return null
+    return { at: parsed.at, design: parsed.design }
   } catch {
     return null
   }
@@ -70,6 +73,40 @@ export function clearAdopted(): void {
   if (!s) return
   try {
     s.removeItem(ADOPTED_DESIGN_KEY)
+  } catch {
+    /* 清不掉就算了 */
+  }
+}
+
+export function writeDraft(design: TankDesign): boolean {
+  const s = store()
+  if (!s) return false
+  try {
+    s.setItem(DRAFT_DESIGN_KEY, JSON.stringify(design))
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function readDraft(): TankDesign | null {
+  const s = store()
+  if (!s) return null
+  try {
+    const raw = s.getItem(DRAFT_DESIGN_KEY)
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    return isDesignLike(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+export function clearDraft(): void {
+  const s = store()
+  if (!s) return
+  try {
+    s.removeItem(DRAFT_DESIGN_KEY)
   } catch {
     /* 清不掉就算了 */
   }

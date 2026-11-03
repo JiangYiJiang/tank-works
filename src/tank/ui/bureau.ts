@@ -28,7 +28,7 @@ import { muzzleVelocity } from '../model/gun'
 import { penetrationAt, losPenetrated, plateDefeated } from '../model/ballistics'
 import { designYear } from '../model/era'
 import { designCheck } from '../sim/research'
-import { writeAdopted } from '../../platform/design-handoff'
+import { readDraft, writeAdopted } from '../../platform/design-handoff'
 import { readTech } from '../../platform/tech-handoff'
 import type { ArmorMaterialId, ShellType, Tank, TankDesign } from '../types'
 
@@ -109,6 +109,7 @@ function eraBenchmark(year: number, total: number) {
 // ────────────────────────────────────────────────────────────
 
 export function mountBureau(root: HTMLElement): void {
+  const embedded = new URLSearchParams(location.search).get('embedded') === '1'
   /** 主循环发布的科技快照；没有就是沙盒模式（全部零件可选）。 */
   const tech = readTech()
   const techState = tech ? { mastered: tech.mastered, projects: [], upgrades: [] } : null
@@ -126,8 +127,10 @@ export function mountBureau(root: HTMLElement): void {
    * 默认从 T-34/76 起手 —— 中间点最容易看出「改一处，掉多少」。
    * 支持 `?tank=虎王` 直接打开某辆历史车，方便复现和截图。
    * 有科技快照时，只从「现在造得出来」的样车里挑。
+   * 从主循环打开（embedded）时，用当前这一局的产品做起点。
    */
-  const wanted = new URLSearchParams(location.search).get('tank')
+  const draft = embedded ? readDraft() : null
+  const wanted = embedded ? null : new URLSearchParams(location.search).get('tank')
   const requested =
     (wanted ? SAMPLES.find((s) => s.name.includes(wanted) || s.design.name.includes(wanted)) : undefined) ?? undefined
   const initial =
@@ -135,7 +138,7 @@ export function mountBureau(root: HTMLElement): void {
     SAMPLES.find((s) => s.design.name === 'T-34/76' && fits(s.design)) ??
     SAMPLES.find((s) => fits(s.design)) ??
     SAMPLES[0]!
-  const design: TankDesign = structuredClone(initial.design)
+  const design: TankDesign = structuredClone(draft ?? initial.design)
   if (tech && tech.limits.pike <= 1) delete design.armor.pike
 
   const controls: Control[] = []
@@ -573,7 +576,7 @@ export function mountBureau(root: HTMLElement): void {
 
   const adoptNote = el('span', { class: 'adopt-note' })
   const techNote = el('p', { class: 'tech-note' })
-  const adoptBtn = el('button', { class: 'adopt-btn', type: 'button' }, '采用此设计 →')
+  const adoptBtn = el('button', { class: 'adopt-btn', type: 'button' }, embedded ? '应用到本局 →' : '采用此设计 →')
   adoptBtn.addEventListener('click', () => {
     if (!design.name.trim()) {
       design.name = '未命名'
@@ -588,6 +591,18 @@ export function mountBureau(root: HTMLElement): void {
         return
       }
     }
+    if (embedded) {
+      try {
+        const target = location.origin === 'null' ? '*' : location.origin
+        window.parent.postMessage({ type: 'tank-works:design', design }, target)
+        adoptNote.textContent = `已把「${design.name}」发回本局`
+        adoptNote.classList.remove('bad')
+      } catch {
+        adoptNote.textContent = '无法把设计发回本局'
+        adoptNote.classList.add('bad')
+      }
+      return
+    }
     const ok = writeAdopted(design)
     const year = designYear(design)
     adoptNote.textContent = ok
@@ -596,19 +611,26 @@ export function mountBureau(root: HTMLElement): void {
     adoptNote.classList.toggle('bad', !ok)
   })
 
+  const backLink = el('a', { class: 'adopt-link', href: './game.html' }, '去主循环 →')
+  if (embedded) backLink.hidden = true
   const header = el(
     'header',
     { class: 'topbar' },
     el(
       'div',
       { class: 'brand' },
-      el('h1', { text: '设计局' }),
-      el('p', { class: 'sub', text: '六个槽位决定一切 · 每改一处，都能看到代价落在谁身上' }),
+      el('h1', { text: embedded ? '设计本厂车' : '设计局' }),
+      el('p', {
+        class: 'sub',
+        text: embedded
+          ? '当前这一局的产品 · 改完直接应用，不用两个页面来回倒'
+          : '六个槽位决定一切 · 每改一处，都能看到代价落在谁身上',
+      }),
     ),
     el(
       'div',
       { class: 'top-side' },
-      el('div', { class: 'top-actions' }, adoptBtn, el('a', { class: 'adopt-link', href: './game.html' }, '去主循环 →')),
+      el('div', { class: 'top-actions' }, adoptBtn, backLink),
       adoptNote,
       techNote,
       el(
@@ -620,12 +642,14 @@ export function mountBureau(root: HTMLElement): void {
 
   root.append(el('div', { class: 'bureau' }, header, el('main', { class: 'layout' }, slots, readout)))
 
-  window.addEventListener('focus', () => {
-    const latest = readTech()
-    if (latest && (!tech || latest.at !== tech.at)) {
-      techNote.textContent = '科技状态已更新：刷新页面后零件表才会跟着变。'
-    }
-  })
+  if (!embedded) {
+    window.addEventListener('focus', () => {
+      const latest = readTech()
+      if (latest && (!tech || latest.at !== tech.at)) {
+        techNote.textContent = '科技状态已更新：刷新页面后零件表才会跟着变。'
+      }
+    })
+  }
 
   update()
 
