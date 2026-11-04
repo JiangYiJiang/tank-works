@@ -277,7 +277,23 @@ check('接单后招标列表清空', all(root3, '.offer').length === 0)
 check('接单后备料花钱', cashOf(root3) < cash0, `${cash0} → ${cashOf(root3)}`)
 check('订单执行中不能换产品', (q(root3, '.product-select') as HTMLSelectElement).disabled === true)
 check('产线在运转', root3.textContent!.includes('产线 1 条 · 运转中'), txt(root3, '.contract-line'))
-check('订单执行中设计按钮禁用', (q(root3, '.chip-design') as HTMLButtonElement).disabled === true)
+const designBtn3 = q(root3, '.chip-design') as HTMLButtonElement
+check('订单执行中也能进设计局', designBtn3.disabled === false)
+check('设计按钮提示新产品下一单生效', designBtn3.title.includes('下一单'), designBtn3.title)
+
+designBtn3.dispatchEvent(new win.Event('click') as unknown as Event)
+check('设计局覆盖层打开', q(root3, '.design-overlay') !== null)
+check('设计局显示锁定时间', txt(root3, '.design-title').includes('1 天 / 秒'), txt(root3, '.design-title'))
+check('设计局里 1× 生效', q(root3, '.chip[data-speed="1"]')?.classList.contains('on') === true)
+const speed10 = all(root3, '.chip[data-speed]').find((b) => b.getAttribute('data-speed') === '10')!
+speed10.dispatchEvent(new win.Event('click') as unknown as Event)
+check('设计局里不能调速', q(root3, '.chip[data-speed="1"]')?.classList.contains('on') === true)
+const pause3 = q(root3, '.chip-pause')!
+pause3.dispatchEvent(new win.Event('click') as unknown as Event)
+check('设计局里不能暂停', !pause3.classList.contains('on'))
+;(q(root3, '.design-close') as HTMLButtonElement).dispatchEvent(new win.Event('click') as unknown as Event)
+check('关闭设计局恢复覆盖层', q(root3, '.design-overlay') === null)
+check('关闭设计局恢复原速度', q(root3, '.chip[data-speed="3"]')?.classList.contains('on') === true)
 
 const raw3 = store3.read('tank-works.save.v7')
 const saved3 = raw3 ? JSON.parse(raw3) : null

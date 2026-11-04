@@ -64,7 +64,7 @@ check('渲染出耦合与代价四行', root.querySelectorAll('.couple-row').len
 check('没有括号里的 undefined', !/undefined|NaN/.test(text()))
 
 // 把首上倾角从 45° 拉到 65°，装甲面积变大 → 更重 → 更贵，总分应当变
-const sliders = [...root.querySelectorAll('input[type=range]')] as unknown as HTMLInputElement[]
+const sliders = [...root.querySelectorAll('.rng')] as unknown as HTMLInputElement[]
 const slope = sliders.find((s) => s.max === '70')
 if (slope) {
   const orig = slope.value
@@ -117,9 +117,9 @@ check('物理量有抗破', text().includes('首上抗破') && text().includes('
 check('物理量有主动防御', text().includes('主动防御'))
 
 // 换成破甲弹：不吃角度，2km 不衰减
-const ammoSel = [...root.querySelectorAll('select')].find((s) =>
-  [...(s as unknown as HTMLSelectElement).options].some((o) => o.textContent?.includes('破甲弹')),
-) as unknown as HTMLSelectElement | undefined
+const ammoTab = root.querySelector('.wpn-tab[data-tab="ammo"]') as HTMLButtonElement | null
+ammoTab?.dispatchEvent(new win.Event('click') as unknown as Event)
+const ammoSel = root.querySelector('.wpn-ammo-family') as HTMLSelectElement | null
 if (ammoSel) {
   ammoSel.value = 'heat'
   ammoSel.dispatchEvent(new win.Event('change') as unknown as Event)
@@ -135,10 +135,6 @@ if (ammoSel) {
   const fv = balVals().map((v) => Number(v.replace(/,/g, '')))
   check('长杆弹 2km 保持率高于被帽弹', fv[4]! / fv[1]! > 93 / 151, `${fv[4]} / ${fv[1]}`)
   check('界面说明了长杆怕斜板', text().includes('长杆怕斜板'))
-
-  ammoSel.value = ''
-  ammoSel.dispatchEvent(new win.Event('change') as unknown as Event)
-  check('切回原配后穿深复原', balVals()[1] === '151', `实际 ${balVals()[1]}`)
 } else {
   check('找得到弹药下拉', false)
 }
@@ -173,6 +169,29 @@ check(
     [...(s as HTMLSelectElement).options].some((o) => o.textContent?.includes('历史样车')),
   ),
 )
+
+// ── 武器页：炮 / 弹 / 架 ──────────────────────────────────
+const weaponRoot = doc.createElement('div') as unknown as HTMLElement
+doc.body.appendChild(weaponRoot as never)
+mountBureau(weaponRoot, { initialDesign: structuredClone(tiger.design) })
+const wClick = (sel: string): void => {
+  const node = weaponRoot.querySelector(sel) as HTMLElement | null
+  node?.dispatchEvent(new win.Event('click') as unknown as Event)
+}
+check('武器页有炮/弹/架三页签', weaponRoot.querySelectorAll('.wpn-tab').length === 3)
+check('默认打开火炮页', weaponRoot.querySelector('.wpn-tab[data-tab="gun"]')?.classList.contains('on') === true)
+check('火炮页有膛压上限', (weaponRoot.textContent ?? '').includes('膛压上限'))
+wClick('.wpn-tab[data-tab="ammo"]')
+check('弹药页至少一张弹卡', weaponRoot.querySelectorAll('.wpn-ammo').length >= 1)
+wClick('.wpn-add')
+check('添加弹种后变成两张卡', weaponRoot.querySelectorAll('.wpn-ammo').length === 2)
+wClick('.wpn-add')
+wClick('.wpn-add')
+check('最多四张弹卡', weaponRoot.querySelectorAll('.wpn-ammo').length === 4)
+check('满四张后不再显示添加按钮', weaponRoot.querySelector('.wpn-add') === null)
+wClick('.wpn-tab[data-tab="rack"]')
+check('弹架页显示总备弹和炮塔下限', (weaponRoot.textContent ?? '').includes('总备弹') && (weaponRoot.textContent ?? '').includes('炮塔下限'))
+check('武器页始终显示结构校验', weaponRoot.querySelector('.wpn-summary') !== null)
 
 // 存档往返无关，但 URL 参数要能用
 check('文字里没有英文报错', !/Error|Cannot read/.test(text()))

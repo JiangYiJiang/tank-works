@@ -24,6 +24,7 @@ import {
   type TechTier,
 } from '../data/tech'
 import { AUX_BY_ID, ARMOR_MATERIALS, AUXES, ENGINES, ENGINE_BY_ID, GUNS, GUN_BY_ID, HULLS, HULL_BY_ID, MATERIAL_BY_ID, SUSPENSION_BY_ID, SUSPENSIONS } from '../data/parts'
+import { ammoLabel, gunOfDesign, validateWeapon } from '../model/weapon'
 import { dateOf } from './calendar'
 import { pushLog, type GameState, type ResearchState } from './state'
 import type { ShellType, TankDesign } from '../types'
@@ -244,7 +245,8 @@ const BOARD_OF_SLOT = {
  */
 export function designCheck(design: TankDesign, r: ResearchState): DesignCheck {
   const hull = HULL_BY_ID.get(design.hull)
-  const gun = GUN_BY_ID.get(design.gun)
+  const customWeapon = design.weapon?.custom === true
+  const gun = customWeapon ? gunOfDesign(design) : GUN_BY_ID.get(design.gun)
   const engine = ENGINE_BY_ID.get(design.engine)
   const susp = SUSPENSION_BY_ID.get(design.suspension)
   const aux = AUX_BY_ID.get(design.aux)
@@ -258,14 +260,22 @@ export function designCheck(design: TankDesign, r: ResearchState): DesignCheck {
     [partAvailable(hull.era, BOARD_OF_SLOT.hull, r), `车体「${hull.name}」要到 ${hull.era} 年`],
     [partAvailable(mat.era, BOARD_OF_SLOT.material, r), `车体装甲「${mat.name}」要到 ${mat.era} 年`],
     [partAvailable(turretMat.era, BOARD_OF_SLOT.material, r), `炮塔装甲「${turretMat.name}」要到 ${turretMat.era} 年`],
-    [partAvailable(gun.era, BOARD_OF_SLOT.gun, r), `火炮「${gun.name}」要到 ${gun.era} 年`],
+    [customWeapon ? true : partAvailable(gun.era, BOARD_OF_SLOT.gun, r), `火炮「${gun.name}」要到 ${gun.era} 年`],
     [partAvailable(engine.era, BOARD_OF_SLOT.engine, r), `发动机「${engine.name}」要到 ${engine.era} 年`],
     [partAvailable(susp.era, BOARD_OF_SLOT.suspension, r), `悬挂「${susp.name}」要到 ${susp.era} 年`],
     [partAvailable(aux.era, BOARD_OF_SLOT.aux, r), `辅助设备「${aux.name}」要到 ${aux.era} 年`],
   ]
   for (const [ok, reason] of checks) if (!ok) return { ok: false, reason }
 
+  if (customWeapon) {
+    const weaponCheck = validateWeapon(design.weapon!)
+    if (!weaponCheck.ok) return weaponCheck
+  }
+
   const limits = techLimits(r)
+  if (customWeapon && design.weapon!.gun.pressure > limits.chargeMax) {
+    return { ok: false, reason: `膛压上限 ${design.weapon!.gun.pressure} 超过当前上限 ${limits.chargeMax}（先研发高膛压炮尾）` }
+  }
   if (design.armor.frontSlope > limits.slopeMax) {
     return { ok: false, reason: `倾角 ${design.armor.frontSlope}° 超过当前上限 ${limits.slopeMax}°（先研发大倾角设计）` }
   }
@@ -285,6 +295,13 @@ export function designCheck(design: TankDesign, r: ResearchState): DesignCheck {
   }
   if (gun.charge > limits.chargeMax) {
     return { ok: false, reason: `装药 ${gun.charge} 超过当前上限 ${limits.chargeMax}（先研发高膛压炮尾）` }
+  }
+  if (customWeapon) {
+    for (const ammo of design.weapon!.ammo) {
+      if (ammo.charge > limits.chargeMax) {
+        return { ok: false, reason: `${ammoLabel(ammo.family)} 装药 ${ammo.charge} 超过当前上限 ${limits.chargeMax}` }
+      }
+    }
   }
   return { ok: true, reason: '' }
 }

@@ -15,7 +15,7 @@ export function designYear(design: TankDesign): number {
   const turretMaterial = design.armor.turretMaterial ?? design.armor.material
   return Math.max(
     HULL_BY_ID.get(design.hull)?.era ?? 0,
-    GUN_BY_ID.get(design.gun)?.era ?? 0,
+    design.weapon?.custom === true ? 0 : (GUN_BY_ID.get(design.gun)?.era ?? 0),
     ENGINE_BY_ID.get(design.engine)?.era ?? 0,
     SUSPENSION_BY_ID.get(design.suspension)?.era ?? 0,
     AUX_BY_ID.get(design.aux)?.era ?? 0,

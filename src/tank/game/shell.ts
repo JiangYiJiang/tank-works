@@ -119,6 +119,14 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   let companySig = ''
   let founderOpen = false
   let founderEditing = false
+  let designOpen = false
+  let designHiddenPause = false
+  let designClock: HTMLElement | null = null
+  let designRestore: { paused: boolean; speed: number; pauseReason: PauseReason } = {
+    paused: false,
+    speed: 3,
+    pauseReason: 'manual',
+  }
 
   let speed = 3
   let paused = false
@@ -859,6 +867,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   }
 
   function setSpeed(s: number): void {
+    if (designOpen) return
     speed = s
     paused = false
     pauseReason = 'manual'
@@ -868,7 +877,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   }
 
   function togglePause(): void {
-    if (state.over) return
+    if (state.over || designOpen) return
     paused = !paused
     pauseReason = 'manual'
     acc = 0
@@ -877,7 +886,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   }
 
   function doJump(): void {
-    if (state.over) return
+    if (state.over || designOpen) return
     paused = true
     const before = state.day
     const r = skipToNextEvent(state)
@@ -911,10 +920,6 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   }
 
   function openDesigner(): void {
-    if (state.contract) {
-      showFlash({ d: state.day, k: 'note', t: '订单执行中，交完再改产品设计。' })
-      return
-    }
     if (state.over) return
     if (!writeDraft(state.design)) {
       showFlash({ d: state.day, k: 'note', t: '浏览器不允许写本地存储，设计局打不开。' })
@@ -922,7 +927,17 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     }
     activeBureau = 'design'
     syncBureauActive()
+    designRestore = { paused, speed, pauseReason }
+    designOpen = true
+    designHiddenPause = false
+    paused = false
+    speed = 1
+    pauseReason = 'manual'
+    acc = 0
+    dirty = true
 
+    const designTime = el('span', { class: 'design-time' })
+    designClock = designTime
     const closeBtn = el('button', { class: 'design-close', type: 'button', text: '× 关闭' })
     const frame = el('iframe', {
       class: 'design-frame',
@@ -935,7 +950,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       el(
         'div',
         { class: 'design-bar' },
-        el('div', { class: 'design-title' }, el('strong', { text: '设计本厂车' }), el('span', { text: '改完点「应用到本局」' })),
+        el('div', { class: 'design-title' }, el('strong', { text: '设计本厂车' }), el('span', { text: '1 天 / 秒 · 不可暂停 · 改完点「应用到本局」' }), designTime),
         closeBtn,
       ),
       frame,
@@ -946,8 +961,17 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       if (onMessage) window.removeEventListener('message', onMessage)
       overlay.remove()
       clearDraft()
+      designOpen = false
+      designHiddenPause = false
+      designClock = null
+      paused = designRestore.paused
+      speed = designRestore.speed
+      pauseReason = designRestore.pauseReason
+      acc = 0
       activeBureau = view
       syncBureauActive()
+      dirty = true
+      render()
     }
     closeBtn.addEventListener('click', close)
     overlay.addEventListener('click', (e) => {
@@ -982,6 +1006,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     }
     window.addEventListener('message', onMessage)
     root.append(overlay)
+    render()
   }
 
   function importAdopted(): void {
@@ -1140,7 +1165,17 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
 
   window.addEventListener('beforeunload', save)
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') save()
+    if (document.visibilityState === 'hidden') {
+      if (designOpen) {
+        designHiddenPause = !paused
+        paused = true
+      }
+      save()
+    } else if (designOpen && designHiddenPause) {
+      designHiddenPause = false
+      paused = false
+      acc = 0
+    }
   })
 
   // ── 渲染：产品 / 订单 / 产线 ─────────────────────────────
@@ -1246,8 +1281,8 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     }
     productSelect.value = exact ? state.design.name : '__custom__'
     productSelect.disabled = state.contract !== null
-    designBtn.disabled = state.contract !== null || state.over
-    designBtn.title = state.contract ? '订单执行中不能改产品' : '打开设计局，改完直接应用到本局'
+    designBtn.disabled = state.over
+    designBtn.title = state.contract ? '订单执行中也能进设计局；新产品从下一单生效' : '打开设计局，改完直接应用到本局'
 
     const tank = buildTank(state.design, techMods(state.research))
     productStats.replaceChildren(
@@ -1443,6 +1478,10 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   function render(): void {
     const dateStr = formatDate(state.day)
     dateText.textContent = dateStr
+    if (designClock) {
+      const left = state.contract ? Math.max(0, state.contract.deadline - state.day) : null
+      designClock.textContent = `当前 ${dateStr}${left === null ? '' : ` · 合同剩余 ${left} 天`}`
+    }
     const era = ERAS[state.era]!
     eraText.textContent = state.over ? '结束' : era.name
     eraBlurb.textContent = era.blurb
@@ -1539,7 +1578,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     if (dt > 0.25) dt = 0.25
 
     if (!paused && !state.over && !founderOpen) {
-      acc += dt * speed
+      acc += dt * (designOpen ? 1 : speed)
       if (acc >= 1) {
         const days = Math.floor(acc)
         acc -= days
@@ -1549,30 +1588,32 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
         if (r.ended) {
           paused = true
           pauseReason = 'ended'
-        } else if (r.contractDone) {
+        } else if (!designOpen && r.contractDone) {
           paused = true
           pauseReason = 'contract'
           if (state.log.length > sizeBefore) showFlash(state.log[state.log.length - 1]!)
-        } else if (r.researchDone) {
+        } else if (!designOpen && r.researchDone) {
           paused = true
           pauseReason = 'research'
           if (state.log.length > sizeBefore) showFlash(state.log[state.log.length - 1]!)
           publishTech()
-        } else if (state.contract && !cashWarned && state.cash < 50_000) {
+        } else if (!designOpen && state.contract && !cashWarned && state.cash < 50_000) {
           paused = true
           pauseReason = 'cash'
           cashWarned = true
           showFlash({ d: state.day, k: 'note', t: '现金告急：不到 5 万，先看看账。' })
-        } else if (state.contract && !deadlineWarned && state.contract.deadline - state.day <= 5) {
+        } else if (!designOpen && state.contract && !deadlineWarned && state.contract.deadline - state.day <= 5) {
           paused = true
           pauseReason = 'deadline'
           deadlineWarned = true
           showFlash({ d: state.day, k: 'note', t: '交期只剩 5 天，确认还能交上。' })
-        } else if (r.eraChanged || r.newsCount > 0) {
+        } else if (!designOpen && (r.eraChanged || r.newsCount > 0)) {
           paused = true
           pauseReason = 'event'
           const newest = state.log[state.log.length - 1]
           if (newest && state.log.length > sizeBefore) showFlash(newest)
+        } else if (designOpen && r.researchDone) {
+          publishTech()
         }
         acc = 0
         dirty = true

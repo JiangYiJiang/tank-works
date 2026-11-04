@@ -27,10 +27,12 @@ import { solveGeometry } from '../model/geometry'
 import { muzzleVelocity } from '../model/gun'
 import { penetrationAt, losPenetrated, plateDefeated } from '../model/ballistics'
 import { designYear } from '../model/era'
+import { gunOfDesign, weaponFromLegacyGun } from '../model/weapon'
 import { designCheck } from '../sim/research'
 import { readDraft, writeAdopted } from '../../platform/design-handoff'
 import { readTech } from '../../platform/tech-handoff'
 import type { ArmorMaterialId, ShellType, Tank, TankDesign } from '../types'
+import { mountWeaponPanel } from './weapon-panel'
 
 /**
  * 可选弹种。火炮自带一个 shell 字段（这门炮当年配的弹），
@@ -170,6 +172,7 @@ export function mountBureau(root: HTMLElement, opts: BureauOptions = {}): void {
   const draft = embedded ? readDraft() : null
   const design: TankDesign = structuredClone(opts.initialDesign ?? draft ?? blankDesign())
   if (tech && tech.limits.pike <= 1) delete design.armor.pike
+  if (!design.weapon) design.weapon = weaponFromLegacyGun(design.gun)
 
   const controls: Control[] = []
 
@@ -256,17 +259,41 @@ export function mountBureau(root: HTMLElement, opts: BureauOptions = {}): void {
     }
   }
 
-  // ── 左栏：槽位 ────────────────────────────────────────────
+  // ── 左栏：武器 + 车体 ────────────────────────────────────
 
   const slots = el('section', { class: 'panel slots' })
 
+  const weaponHost = el('div', { class: 'wpn-host' })
+  slots.append(weaponHost)
+  mountWeaponPanel(weaponHost, {
+    design,
+    limits: tech
+      ? {
+          caliberMax: tech.limits.caliberMax,
+          howitzerCaliberMax: tech.limits.howitzerCaliberMax,
+          barrelMax: tech.limits.barrelMax,
+          chargeMax: tech.limits.chargeMax,
+        }
+      : { caliberMax: 152, howitzerCaliberMax: 152, barrelMax: 70, chargeMax: 1.5 },
+    mastered: tech?.mastered,
+    onChange: () => {
+      design.weapon!.custom = true
+      update()
+    },
+  })
+
+  const chassis = el('details', { class: 'wpn-chassis' })
+  const chassisBody = el('div', { class: 'wpn-chassis-body' })
+  chassis.append(el('summary', { class: 'wpn-chassis-head', text: '车体 / 装甲 / 动力 / 辅助' }), chassisBody)
+  slots.append(chassis)
+
   function group(title: string): void {
-    slots.append(el('div', { class: 'panel-head' }, title))
+    chassisBody.append(el('div', { class: 'panel-head' }, title))
   }
 
   function add(control: Control): void {
     controls.push(control)
-    slots.append(control.node)
+    chassisBody.append(control.node)
   }
 
   group('型号')
@@ -325,31 +352,6 @@ export function mountBureau(root: HTMLElement, opts: BureauOptions = {}): void {
   if (!tech || tech.limits.pike > 1) {
     add(checkRow('双斜面尖头（IS-3 式）', () => design.armor.pike === true, (v) => (design.armor.pike = v)))
   }
-
-  group('火力')
-  add(
-    selectRow(
-      '火炮',
-      guns.map((g) => ({ value: g.id, label: `${g.era}  ${g.name}` })),
-      () => design.gun,
-      (v) => (design.gun = v),
-    ),
-  )
-  add(
-    selectRow(
-      '弹药',
-      [
-        { value: '', label: '原配弹种' },
-        ...SHELL_OPTIONS.map((s) => ({ value: s.value, label: s.label })),
-      ],
-      () => design.mods?.ammo ?? '',
-      (v) => {
-        const mods = (design.mods ??= {})
-        if (v) mods.ammo = v as ShellType
-        else delete mods.ammo
-      },
-    ),
-  )
 
   group('动力与行走')
   add(
@@ -644,7 +646,7 @@ export function mountBureau(root: HTMLElement, opts: BureauOptions = {}): void {
         class: 'sub',
         text: embedded
           ? '当前这一局的产品 · 改完直接应用，不用两个页面来回倒'
-          : '六个槽位决定一切 · 每改一处，都能看到代价落在谁身上',
+          : '炮、弹、架与底盘一起决定这辆车 · 每改一处，都能看到代价落在谁身上',
       }),
     ),
     el(
@@ -715,7 +717,7 @@ export function mountBureau(root: HTMLElement, opts: BureauOptions = {}): void {
     set('armorSide', nf(p.armorSide))
     set('armorFrontCe', nf(p.armorFrontCe))
     set('armorTurretCe', nf(p.armorTurretCe))
-    const gun = GUNS.find((g) => g.id === design.gun)
+    const gun = gunOfDesign(design)
     set('velocity', nf(tank.ballistics.v0))
     set('pen', nf(p.pen))
     set('reloadSec', p.reloadSec.toFixed(1))

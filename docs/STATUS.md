@@ -11,7 +11,8 @@
 
 | 模块 | 状态 | 一句话 |
 |---|---|---|
-| 设计局 · 物理模型 | ✅ 完成 | 六槽位 → 七步管线；19 辆历史车全部落在门限内 |
+| 设计局 · 物理模型 | ✅ 完成 | 六槽底盘 + 武器三页；19 辆历史车全部落在门限内 |
+| 设计局 · 武器参数化 | ✅ v2.1 | 炮/弹/架三页；1–4 种唯一弹种；版本校验、弹架下限、弹药覆盖评分 |
 | 主菜单 | ✅ 完成 | 加载游戏、新游戏、设置、退出；左侧 logo，右侧背景预留 |
 | 国家选择 | ✅ 完成 | 新游戏先过 9 国卡片页；国旗、国名、发展历程；选中后才开始 |
 | 游戏主界面 | ✅ 首版 | 五局入口（默认外交局）、9 国编制、地图占位、事件记录、首次建厂登记 |
@@ -26,9 +27,9 @@
 | 贸易局 | ✅ M3 | 招标、竞品（轻量 AI）、压价、贿赂、信誉、审计；阵营/出口限制暂关，待按历史重做；不做自主设计竞品 |
 | 经济闭环 | ✅ M3 | 接单 → 排产 → 交付 → 回款 → 下一单；贷款/关厂报告/多产线/料价波动/尺度 v1；单合同 |
 
-**一句话：主循环能转、科技树能推、设计能卖、标能抢、市场全开、钱能借、线能加、账能算；能打成 Windows exe；阵营系统待重做，联机不做。**
+**一句话：主循环能转、科技树能推、设计能卖、标能抢、市场全开、钱能借、线能加、账能算、炮/弹/架能调；能打成 Windows exe；阵营系统待重做，联机不做。**
 
-检查台现状：`npm run check` = 类型检查 + 15 个检查台，**612 项断言全绿**（见 §1.16）。
+检查台现状：`npm run check` = 类型检查 + 16 个检查台，**655 项断言全绿**（见 §1.16）。
 
 > **阵营系统暂关**：旧的 1939–45 同盟/轴心、1947–91 东西方分段已从代码移除，所有进入市场的国家都能供货，只排除本国。后续按法国 1940、美国 1917 这类历史事件重新设计。
 
@@ -50,14 +51,14 @@
 
 ### 1.2 设计局界面（第 2 步）✅
 
-- 六槽位 + 连续滑条（厚度、倾角）+ 型号名；**不提供历史样车，从空设计/当前产品开始**
+- 六槽底盘 + 武器三页 + 连续滑条（厚度、倾角）+ 型号名；**不提供历史样车，从空设计/当前产品开始**
 - 四维条、19 项物理量（含抗破 / 装填 / 倒车 / 俯仰）、**耦合与代价四条链**、成本四项、缺陷列表、同期对比
 - 弹道面板：**距离-穿深折线图** + 4 档倾角 + 一句话解释 + 「打得穿/打不穿」自检；破甲弹对比抗破
 - 型号名输入 + 右上角「采用此设计」→ 主循环里「导入设计局的车」
 - **游戏内设计**：产品面板「设计本厂车」打开覆盖层，用当前产品做起点，改完直接应用回本局
 - 独立 `/tank.html` 仍可预览；游戏内入口是正式路径
 
-**验证**：`npm run smoke:tank` → **37 项断言**（空设计起点、折线图、换弹种、采用交接）
+**验证**：`npm run smoke:tank` → **45 项断言**（武器三页、空设计起点、折线图、换弹种、采用交接）
 
 ### 1.3 时钟与事件系统（第 3 步）✅
 
@@ -135,7 +136,7 @@
 
 ### 1.10 设计局 → 主循环 ✅
 
-- 设计局右上角「采用此设计」：把六槽位设计 + 型号名写进 `localStorage`（`tank-works.design.v1`）
+- 设计局右上角「采用此设计」：把底盘 + 武器设计 + 型号名写进 `localStorage`（`tank-works.design.v1`）
 - 主循环「导入设计局的车」：读回设计、校验能不能算、按年代闸门放行，之后就是本厂产品
 - 年代闸门：`designYear = max(车体/炮/发动机/悬挂/辅助/材料年代)`，必须 ≤ 当前年份 + 2
 - 产品身份按制造参数比，不按名字：改名字不算换型，改参数才掉熟练度
@@ -193,7 +194,7 @@
 - 研发页用 `.research-workspace` + `.tech-tree`；贸易页保留「成交纪律」侧栏；制造页保留厂子 + 产线 + 局势三块
 - 响应式：五卡 5→3→2→1 列；外交三列 → 两列 → 单列；国家列表独立滚动
 
-**验证**：`npm run world` → **16 项**；`npm run dashboard` → **46 项**（五卡、默认外交、9 国、地图、事件、展开、页面切换、建厂登记）；`npm run smoke:game` → 107 项
+**验证**：`npm run world` → **16 项**；`npm run dashboard` → **46 项**（五卡、默认外交、9 国、地图、事件、展开、页面切换、建厂登记）；`npm run smoke:game` → 115 项
 
 ### 1.15 Windows 桌面版 ✅
 
@@ -203,7 +204,7 @@
 - **设置**：`tank-works.settings.v1` 统一存 `displayMode / masterVolume / musicVolume / sfxVolume / reduceMotion`，兼容旧版只有 `reduceMotion` 的存档；音量目前只持久化，音频资源尚未接入
 - **桌面桥**：`desktop/preload.ts` 通过 contextBridge 暴露 `window.tankWorksDesktop`（`getDisplayMode / setDisplayMode / quit`），不透传 `ipcRenderer`；浏览器里模式按钮禁用
 - **打包**：`npm run desktop:pack` → electron-builder 生成 NSIS 安装包 + portable exe；图标 `build/icon.ico`，产品名 `Tank Works`
-- **验证**：`npm run check` 612 项；`npm run build` exit 0；`release/win-unpacked/Tank Works.exe` 冒烟启动，window / borderless / fullscreen 三种模式均通过（fullscreen `isFullScreen=true`，borderless 1920×1035，window 1280×800 可缩放）
+- **验证**：`npm run check` 655 项；`npm run build` exit 0；`release/win-unpacked/Tank Works.exe` 冒烟启动，window / borderless / fullscreen 三种模式均通过（fullscreen `isFullScreen=true`，borderless 1920×1035，window 1280×800 可缩放）
 
 **产物**：`release/Tank Works-0.2.0-x64.exe`（安装包）、`release/Tank Works-0.2.0-portable.exe`（免安装）。
 
@@ -224,15 +225,16 @@
 | 设计指标 | `npm run metrics` | 13 | ✅ |
 | 经济尺度 | `npm run scale` | 33 | ✅ |
 | 经济 | `npm run economy` | 96 | ✅ |
-| 设计局界面 | `npm run smoke:tank` | 37 | ✅ |
-| 游戏壳界面 | `npm run smoke:game` | 107 | ✅ |
+| 设计局界面 | `npm run smoke:tank` | 45 | ✅ |
+| 游戏壳界面 | `npm run smoke:game` | 115 | ✅ |
+| 武器参数化 | `npm run weapon` | 27 | ✅ |
 | 主菜单界面 | `npm run menu` | 47 | ✅ |
 | 国家选择界面 | `npm run nation` | 34 | ✅ |
 | 世界编制 | `npm run world` | 16 | ✅ |
 | 游戏主界面 | `npm run dashboard` | 46 | ✅ |
 | 研发局界面 | `npm run smoke:research` | 27 | ✅ |
 | 制造局界面 | `npm run smoke:mf` | 21 | ✅ |
-| **合计** | | **612 项断言** | |
+| **合计** | | **655 项断言** | |
 
 ### 1.17 研发局 v2：科研槽与科技树 ✅
 
@@ -242,7 +244,18 @@
 - **科技弹窗**：介绍、前置、基础工期、时间修正、槽速、时代强度、预计月数与完成日期、费用；预计月数 = `effortForTier().months / (slotSpeed × intensityAt(year))`。
 - **口径/倍径分流**：`gun.caliber` 只放加农炮；`gun.howitzer` 单独放短管榴弹炮。重型榴弹炮 1939 解锁 152mm 短管，M-10T（1940）因此可装进 KV-2；`GunDef.lowVelocity` 为真时走 `howitzerCaliberMax`，不会把高初速 152mm 顺带放开。
 - **存档**：仍为 v7；`coerceResearch` 兼容旧档（按旧 upgrades 补槽），新档保存 slots / build / project.slot。
-- **验证**：`npm run research:slots` 37；`npm run smoke:game` 107；`npm run dashboard` 46；`npm run check` 612。
+- **验证**：`npm run research:slots` 37；`npm run smoke:game` 115；`npm run dashboard` 46；`npm run check` 655。
+
+### 1.18 武器参数化：炮 / 弹 / 架 ✅
+
+- **数据**：`TankDesign.weapon?: WeaponFit`，由 `GunSpec`（炮族/口径/身管/膛压/膛线/装填/供弹/炮口/热护套）、`AmmoSpec[]`（1–4 种）与 `RackSpec`（炮塔备弹）组成；`custom:false` 保留历史炮外壳。
+- **几何/质量**：单发体积由弹长、口径、装药与整装/分装推导；炮闩长取最长弹，炮全长=口径×倍径+炮闩；弹架体积与弹药质量进入 `mass.ts`，因此备弹量会影响重量、炮塔、成本。
+- **约束**：1–4 种弹、类型唯一、每种 ≥1；总备弹 1–120；炮塔备弹 ≥ 尾舱 `ceil(total/2)` / 人工 `ceil(total/3)` / 转盘与无炮塔 0；膛压、口径、倍径、每弹装药同时受科技上限约束。
+- **评分**：自定义武器按反装甲/软目标覆盖给适应性加成（每类至少 3 发，`roles×15 + min(10, floor(反装甲/8))`）；火力仍取反装甲最高穿深，不把四种弹相加。
+- **时间**：设计局内固定 1 游戏天/秒，禁暂停/调速/跳事件；合同完成/交期临近只提示不自动暂停；切后台自动暂停；任何时间可进，工资、产线、交期照常走；退出恢复进入前倍速。
+- **UI**：`src/tank/ui/weapon-panel.ts` 三页签；弹卡最多 4 张；弹架页有炮塔/车体分布条；底部显示弹架体积、弹药质量、炮全长、覆盖加成与结构校验。
+- **兼容**：旧设计没有 `weapon` 或 `custom:false` 时继续走原 `GunDef`，19 辆历史车分数不变；旧存档读档时补合法 `weapon`。
+- **验证**：`npm run weapon` 27；`npm run smoke:tank` 45；`npm run smoke:game` 115；`npm run check` 655；`npm run build` exit 0。
 
 ---
 
@@ -308,6 +321,9 @@
 | 30 | **制造/贸易工作页深化** | 研发页已重做（6 槽 + 科技树）；制造/贸易页仍复用旧面板，只做了切页与侧栏。后续按新主界面的层级重设计（厂房布局、市场盘口） |
 | 31 | **外交局情报层深化** | 当前外交局是「看世界」入口：9 国编制、地图占位、事件记录。下一步把 9 国编制/地图/事件做成可联动的情报面；外交动作与历史阵营重做后另开设计 |
 | 32 | **科研槽经济占位** | 解锁/升级费用与工期、每级 +15% 槽速、月维持都先按占位值跑；等经济系统统一设计后校准。项目暂不能中途取消/退款 |
+| 33 | **武器数值与评分校准** | 单发体积、炮闩/炮长、弹架下限、弹药覆盖加成都是首版工程近似；下一步用 19 辆历史车 + KV-2/虎王等极端配置反推，校准「多带弹」的吨位/成本代价 |
+| 34 | **设计时间体验** | 1 天/秒、后台暂停、退出恢复已接；下一步加「已用时间/合同剩余」更醒目的进度、设计中的自动保存提示，以及切换标签页的可见性测试 |
+| 35 | **科技表 205 项归并** | `docs/坦克科技表（补充版）.xlsx`（205 项/82 泳道）是设计素材，当前 161/66 是运行数据；下一步补科技 ID/前置/工期/费用，把电子/生存性、炮塔布局、复合装甲等新内容并入，并拆掉 1991 年后的 horizon |
 
 ---
 
@@ -398,7 +414,7 @@ npm run desktop:dev    # Vite + Electron 开发窗口
 npm run desktop:build  # esbuild 打桌面壳
 npm run desktop:pack   # 构建 + 桌面壳 + electron-builder，产物在 release/
 npm run preview        # 本地预览打包结果
-npm run check          # 612 项断言的完整回归，提交前跑这个
+npm run check          # 655 项断言的完整回归，提交前跑这个
 
 # 单个检查台
 npm run design         # 19 辆历史车校准
@@ -407,6 +423,9 @@ npm run tech           # 槽月预算 + 九策略
 npm run factory        # 制造局标定（7 车 × 36 月）
 npm run clock          # 时钟/存档验收
 npm run research       # 研发验收（开工、槽位、闸门、迁移）
+npm run research:slots # 科研槽（解锁、升级、占槽、旧档迁移）
+npm run gun            # 口径/榴弹炮分流
+npm run weapon         # 武器参数化（弹种唯一、备弹下限、体积/炮长、旧炮不变）
 npm run metrics        # 设计局指标验收（抗破、装填、倒车、俯仰）
 npm run scale          # 经济尺度（8 个时代的毛利 / 工期 / 首单技术）
 npm run menu           # 主菜单（四按钮、存档摘要、显示模式/音量、退出）
@@ -709,7 +728,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `docs/images/dashboard.png`
 - `docs/images/founder.png`
 
-**验证**：`npm run world` 16；`npm run dashboard` 46；`npm run check` 612；`npm run build` 通过。
+**验证**：`npm run world` 16；`npm run dashboard` 46；`npm run check` 655；`npm run build` 通过。
 
 **明确留到后续**（见 P4-27…31）：
 
@@ -744,7 +763,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 写 `window-state.json` 的 UTF-8 BOM 会让 `JSON.parse` 失败并回退窗口模式；读时 `replace(/^\uFEFF/, '')`
 - 模式切换只能重建窗口（Electron 不能运行时改 `frame`）；因此设置只在主菜单提供
 
-**验证**：`npm run check` 612；`npm run build`；`release/win-unpacked/Tank Works.exe` 冒烟；window 1280×800 可缩放、borderless 1920×1035、fullscreen `isFullScreen=true`；打包产物 `Tank Works-0.2.0-x64.exe` 与 `Tank Works-0.2.0-portable.exe`。
+**验证**：`npm run check` 655；`npm run build`；`release/win-unpacked/Tank Works.exe` 冒烟；window 1280×800 可缩放、borderless 1920×1035、fullscreen `isFullScreen=true`；打包产物 `Tank Works-0.2.0-x64.exe` 与 `Tank Works-0.2.0-portable.exe`。
 
 **后续**：音频资源与播放逻辑（P1-19）；文件系统存档（P3-24）；代码签名；自动更新；模式内实时切换（自定义无边框标题栏）。
 
@@ -760,6 +779,6 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `game/research-view.ts`：左槽位面板 + 右科技树（7 板块/66 泳道/161 卡、SVG 前置连线、当前年竖线、弹窗）；`game/shell.ts` 的研发页改为挂载它。
 - 占位经济：解锁 `120k + 80k×(target-2)` / `8 + 2×(target-2)` 月；升级 `90k + 40k×(level-1)` / `6 + 2×(level-1)` 月；每级月维持 `¥2,500`。
 
-**验证**：`npm run research` 49；`npm run research:slots` 37；`npm run smoke:game` 107；`npm run check` 612；截图 `docs/images/research-tree.png`。
+**验证**：`npm run research` 49；`npm run research:slots` 37；`npm run smoke:game` 115；`npm run check` 655；截图 `docs/images/research-tree.png`。
 
 **后续**：槽位经济数值校准（P4-32）；项目取消/退款；科技树缩放/折叠；研发完成后的零件/性能提示再打磨。

@@ -1,5 +1,7 @@
 /*
- * 游戏外壳的样式�? * 和设计局同一套蓝图配�?—�?两个页面将来会长成同一个游戏�? */
+ * 游戏外壳的样式
+ * 和设计局同一套蓝图配色——两个页面将来会长成同一个游戏。
+ */
 
 :root {
   --bg: #0b0d10;
@@ -129,7 +131,7 @@ body {
   border-color: #45361f;
 }
 
-/* ── 时间�?───────────────────────────────────────────── */
+/* ── 时间�?───────────────────────────────────────────── */
 
 .timeline {
   position: relative;
@@ -702,6 +704,16 @@ body {
   font-size: 10.5px;
 }
 
+.design-time {
+  color: var(--amber);
+  font-family: var(--mono, ui-monospace, Consolas, monospace);
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border: 1px solid rgba(217, 162, 78, 0.35);
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
 .design-close {
   padding: 6px 12px;
   border: 1px solid var(--line);
@@ -887,7 +899,7 @@ body {
   font-size: 10.5px;
 }
 
-/* ── 提示�?───────────────────────────────────────────── */
+/* ── 提示�?───────────────────────────────────────────── */
 
 .banner,
 .flash,
@@ -1745,7 +1757,7 @@ body {
   color: #c9d1da;
 }
 
-/* 局内页�?*/
+/* 局内页�?*/
 
 .bureau-page {
   display: flex;
@@ -2172,7 +2184,7 @@ body {
   }
 }
 
-/* ���� �з��֣����λ����ʱ�� ������������������������������������������������������������������ */
+/* ���� �з��֣����λ����ʱ�� ������������������������������������������������������������������ */
 .research-workspace {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
@@ -2307,7 +2319,7 @@ body {
 .research-unlock-max { color: var(--faint); font: 10px/1.4 ui-monospace, "Cascadia Mono", monospace; }
 .research-slot-foot { margin: 9px 0 0; color: var(--faint); font: 9px/1.55 "Segoe UI", "Microsoft YaHei", sans-serif; }
 
-/* �Ƽ��� */
+/* �Ƽ��� */
 .tech-tree { display: flex; flex-direction: column; overflow: hidden; }
 .tech-tree-head {
   display: flex;
@@ -2445,7 +2457,7 @@ body {
   font: 8px/1.2 ui-monospace, "Cascadia Mono", monospace;
 }
 
-/* �Ƽ����� */
+/* �Ƽ����� */
 .tech-modal {
   position: fixed;
   inset: 0;

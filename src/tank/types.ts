@@ -138,7 +138,50 @@ export interface GunDef {
   charge: number
   /** 短管低膛压榴弹炮：口径受榴弹炮科技约束，不占用加农炮口径上限 */
   lowVelocity?: boolean
+  /** 自定义设计的单发全重（含弹壳），不填则按弹丸质量估算 */
+  roundMassKg?: number
   era: number
+}
+
+/** 火炮族：加农炮与短管榴弹炮各有一套口径上限。 */
+export type GunFamily = 'cannon' | 'howitzer'
+
+/** 自定义火炮参数。 */
+export interface GunSpec {
+  family: GunFamily
+  caliber: number
+  barrelCalibers: number
+  pressure: number
+  rifling: 'rifled' | 'smoothbore'
+  loading: 'manual' | 'semi' | 'bustle' | 'carousel' | 'none'
+  feed: 'single' | 'ready' | 'dual'
+  muzzleBrake: boolean
+  thermalSleeve: boolean
+}
+
+/** 一种自定义弹药。类型唯一，数量 ≥1。 */
+export interface AmmoSpec {
+  family: ShellType
+  cartridge: 'fixed' | 'separate'
+  /** 弹丸长度，倍口径 */
+  projectileLength: number
+  /** 装药量（抽象值 0.2–1.5） */
+  charge: number
+  count: number
+}
+
+/** 弹架分配：总备弹由四种弹的数量相加得到。 */
+export interface RackSpec {
+  turret: number
+}
+
+/** 一台车的完整武器方案。 */
+export interface WeaponFit {
+  gun: GunSpec
+  ammo: AmmoSpec[]
+  rack: RackSpec
+  /** 玩家改过武器；false 表示只是从历史炮推导出来的初始值，仍走原炮。 */
+  custom?: boolean
 }
 
 /** 动力包。 */
@@ -215,6 +258,8 @@ export interface TankDesign {
   engine: string
   suspension: string
   aux: string
+  /** 自定义火炮/弹药/弹架；不填则继续用历史炮 id */
+  weapon?: WeaponFit
   /** 弹药改装（可选）：换弹种、换弹芯、换弹道系数 */
   mods?: AmmoMods
 }
@@ -349,4 +394,6 @@ export interface Tank {
   ballistics: Ballistics
   /** 设计缺陷：不扣分，但会让订单验收和推销出问题 */
   flaws: string[]
+  /** 自定义武器的多弹覆盖加分（已计入 adapt） */
+  weaponCoverage?: number
 }

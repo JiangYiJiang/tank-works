@@ -32,7 +32,8 @@ import {
   type Stats,
 } from './state'
 import type { FactoryState, LineState, ProductionLine, PurchaseOrder } from './factory'
-import type { ArmorMaterialId, TankDesign } from '../types'
+import type { AmmoSpec, ArmorMaterialId, GunSpec, TankDesign, WeaponFit } from '../types'
+import { AMMO_LABELS, validateWeapon } from '../model/weapon'
 
 const LOG_KINDS: readonly LogKind[] = ['era', 'news', 'build', 'order', 'money', 'tech', 'note']
 const LINE_STATES: readonly LineState[] = ['running', 'idle', 'retooling']
@@ -108,6 +109,48 @@ function coerceEntry(raw: unknown): LogEntry | null {
   return { d: Math.max(0, Math.min(TOTAL_DAYS - 1, Math.round(d))), k, t }
 }
 
+/** 自定义武器：形状不对就整块丢弃，退回历史炮。 */
+function coerceWeapon(raw: unknown): WeaponFit | undefined {
+  const w = obj(raw)
+  const g = obj(w?.gun)
+  if (!w || !g) return undefined
+  const family = g.family === 'howitzer' ? 'howitzer' : g.family === 'cannon' ? 'cannon' : null
+  if (!family) return undefined
+  const loading = ['manual', 'semi', 'bustle', 'carousel', 'none'].includes(String(g.loading))
+    ? (g.loading as GunSpec['loading'])
+    : 'manual'
+  const feed = ['single', 'ready', 'dual'].includes(String(g.feed)) ? (g.feed as GunSpec['feed']) : 'single'
+  const gun: GunSpec = {
+    family,
+    caliber: clamp(g.caliber, 20, 200, 57),
+    barrelCalibers: clamp(g.barrelCalibers, 8, 90, 30),
+    pressure: clamp(g.pressure, 0.2, 1.5, 0.6),
+    rifling: g.rifling === 'smoothbore' ? 'smoothbore' : 'rifled',
+    loading,
+    feed,
+    muzzleBrake: g.muzzleBrake === true,
+    thermalSleeve: g.thermalSleeve === true,
+  }
+
+  const list = Array.isArray(w.ammo) ? w.ammo.slice(0, 4) : []
+  const ammo: AmmoSpec[] = []
+  for (const item of list) {
+    const a = obj(item)
+    if (!a || typeof a.family !== 'string' || !(a.family in AMMO_LABELS)) continue
+    ammo.push({
+      family: a.family as AmmoSpec['family'],
+      cartridge: a.cartridge === 'separate' ? 'separate' : 'fixed',
+      projectileLength: clamp(a.projectileLength, 1.6, 7, 3.2),
+      charge: clamp(a.charge, 0.2, 1.5, 0.6),
+      count: clamp(a.count, 1, 120, 1),
+    })
+  }
+  const rackRaw = obj(w.rack)
+  const weapon: WeaponFit = { gun, ammo, rack: { turret: clamp(rackRaw?.turret, 0, 120, 0) }, custom: w?.custom !== false }
+  if (!validateWeapon(weapon).ok) return undefined
+  return weapon
+}
+
 /** 产品：字段坏就补默认值，最后让 buildTank 做一次「能不能算」的终审。 */
 function coerceDesign(raw: unknown): TankDesign {
   const fallback = starterDesign()
@@ -135,6 +178,8 @@ function coerceDesign(raw: unknown): TankDesign {
     suspension: typeof d.suspension === 'string' ? d.suspension : fallback.suspension,
     aux: typeof d.aux === 'string' ? d.aux : fallback.aux,
   }
+  const weapon = coerceWeapon(d.weapon)
+  if (weapon) design.weapon = weapon
   try {
     buildTank(design)
     return design

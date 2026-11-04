@@ -61,7 +61,8 @@ export function solveMass(
   const structureKg = armorKg * m.structurePerArmor * hull.structureFactor + m.structureBase
   const driveKg = engine.mass * m.drivePerEngine
   const gunKg = m.gunMassK * Math.pow(gun.caliber, 2.5) * gun.barrelCalibers
-  const ammoKg = gun.rounds * projectileMass(gun) * m.ammoPerShell
+  const perRoundKg = gun.roundMassKg ?? projectileMass(gun)
+  const ammoKg = gun.rounds * perRoundKg * m.ammoPerShell
   const fuelKg = (m.fuelRangeKm / 100) * engine.thirst * 0.85
   const crewKg = crew * m.crewWeight
 

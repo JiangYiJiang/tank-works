@@ -18,12 +18,12 @@ import type {
 import {
   AUX_BY_ID,
   ENGINE_BY_ID,
-  GUN_BY_ID,
   HULL_BY_ID,
   MATERIAL_BY_ID,
   SUSPENSION_BY_ID,
   need,
 } from '../data/parts'
+import { ammoCoverage, gunOfDesign } from './weapon'
 import { solveAdapt } from './adapt'
 import { solveProtection } from './armor'
 import { resolveGun, solveBallistics } from './ballistics'
@@ -51,7 +51,7 @@ export function depressionOf(ringM: number): number {
 
 export function buildTank(design: TankDesign, tech: TechMods = NO_TECH): Tank {
   const hull = need(HULL_BY_ID, design.hull, '车体')
-  const gun = need(GUN_BY_ID, design.gun, '火炮')
+  const gun = gunOfDesign(design)
   const engine = need(ENGINE_BY_ID, design.engine, '动力包')
   const susp = need(SUSPENSION_BY_ID, design.suspension, '悬挂')
   const aux = need(AUX_BY_ID, design.aux, '辅助设备')
@@ -103,12 +103,21 @@ export function buildTank(design: TankDesign, tech: TechMods = NO_TECH): Tank {
     aps: hasAps,
   }
 
-  const raw = rawDimsFrom(physical, adapt.total)
+  const raw = rawDimsFrom(physical, adapt.total + (design.weapon?.custom === true ? ammoCoverage(design.weapon).bonus : 0))
   const score = scoreDims(raw)
   const cost = solveCost(design, mass, material.costPerKg, tech.labor)
   const flaws = findFlaws(physical, design, crew)
 
-  return { design, physical, raw, score, cost, flaws, ballistics: ballistic }
+  return {
+    design,
+    physical,
+    raw,
+    score,
+    cost,
+    flaws,
+    ballistics: ballistic,
+    weaponCoverage: design.weapon?.custom === true ? ammoCoverage(design.weapon).bonus : undefined,
+  }
 }
 
 function solveCost(
@@ -148,7 +157,7 @@ function solveCost(
  */
 function findFlaws(p: TankPhysical, design: TankDesign, crew: number): string[] {
   const flaws: string[] = []
-  const gun = need(GUN_BY_ID, design.gun, '火炮')
+  const gun = gunOfDesign(design)
 
   if (p.hpPerTon < 8) flaws.push(`动力不足：吨功率只有 ${p.hpPerTon.toFixed(1)} hp/t`)
   if (p.groundPressure > 95) flaws.push(`接地压力过大：${p.groundPressure.toFixed(0)} kPa，容易陷车`)
