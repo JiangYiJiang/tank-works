@@ -1,12 +1,8 @@
 /**
- * 主菜单：一局游戏的入口，也是三个工具页的入口。
+ * 主菜单：一局游戏的唯一入口。
  *
- * 这里只做三件事：
- *   1. 读存档，显示「继续哪一局」；
- *   2. 新游戏：清掉这一局的键，带 `?day=0` 进主循环；
- *   3. 把设计局 / 研发局 / 制造局摆出来。
- *
- * 不在这里创建 GameState —— 主循环自己会解码 / 新开，避免两套真相。
+ * 左栏是 logo 与四个动作，右栏预留背景图位置（内容以后再定）。
+ * 这里不创建 GameState —— 主循环自己会解码 / 新开，避免两套真相。
  */
 
 import { ERAS, formatDate } from './sim/calendar'
@@ -16,7 +12,13 @@ import { createWebStorage, type SaveStore } from '../platform/storage'
 import { nationName } from './data/nations'
 import type { GameState } from './sim/state'
 
-interface MenuStorage extends Pick<SaveStore, 'read' | 'remove'> {}
+const SETTINGS_KEY = 'tank-works.settings.v1'
+
+interface MenuSettings {
+  reduceMotion: boolean
+}
+
+interface MenuStorage extends Pick<SaveStore, 'read' | 'write' | 'remove'> {}
 
 export interface MenuOptions {
   storage?: MenuStorage
@@ -56,61 +58,244 @@ function readSave(storage: MenuStorage): GameState | null {
   return null
 }
 
-function moduleCard(
-  index: string,
-  title: string,
-  desc: string,
-  href: string | undefined,
-  note: string,
-): HTMLElement {
-  const children = [
-    el('div', { class: 'module-top' }, el('span', { class: 'module-index', text: index }), el('span', { class: 'module-arrow', text: '↗' })),
-    el('h3', { text: title }),
-    el('p', { text: desc }),
-    el('span', { class: 'module-note', text: note }),
-  ]
-  return href
-    ? el('a', { class: 'module-card', href }, ...children)
-    : el('div', { class: 'module-card' }, ...children)
+function readSettings(storage: MenuStorage): MenuSettings {
+  const raw = storage.read(SETTINGS_KEY)
+  if (!raw) return { reduceMotion: false }
+  try {
+    const parsed = JSON.parse(raw) as Partial<MenuSettings>
+    return { reduceMotion: parsed.reduceMotion === true }
+  } catch {
+    return { reduceMotion: false }
+  }
+}
+
+function applySettings(settings: MenuSettings): void {
+  document.documentElement.classList.toggle('reduce-motion', settings.reduceMotion)
+}
+
+function settingRow(title: string, desc: string, control: HTMLElement): HTMLElement {
+  return el(
+    'div',
+    { class: 'setting-row' },
+    el('div', { class: 'setting-copy' }, el('strong', { text: title }), el('p', { text: desc })),
+    control,
+  )
 }
 
 export function mountMenu(root: HTMLElement, opts: MenuOptions = {}): void {
   const storage = opts.storage ?? createWebStorage()
   const navigate = opts.navigate ?? ((url: string) => window.location.assign(url))
-  const save = readSave(storage)
+  const settings = readSettings(storage)
+  applySettings(settings)
+  let save = readSave(storage)
   let armed = false
   let armTimer = 0
+  let clearArmed = false
+  let clearTimer = 0
 
-  const continueBtn = el('button', {
-    class: 'menu-btn menu-btn-primary menu-continue',
-    type: 'button',
-    text: save ? (save.over ? '查看关厂报告' : '继续游戏') : '还没有存档',
-  }) as HTMLButtonElement
-  continueBtn.disabled = save === null
-  continueBtn.addEventListener('click', () => {
-    if (save) navigate('./game.html')
-  })
+  const loadBtn = el(
+    'button',
+    { class: 'menu-btn menu-load', type: 'button' },
+    el('span', { class: 'btn-index', text: '01' }),
+    el('span', { class: 'btn-label', text: '加载游戏' }),
+    el('span', { class: 'btn-tail', text: 'CONTINUE' }),
+  ) as HTMLButtonElement
 
-  const newBtn = el('button', {
-    class: 'menu-btn menu-new',
-    type: 'button',
-    text: save ? '新游戏' : '开始新游戏',
-  }) as HTMLButtonElement
+  const newLabel = el('span', { class: 'btn-label', text: '新游戏' })
+  const newTail = el('span', { class: 'btn-tail', text: 'NEW GAME' })
+  const newBtn = el(
+    'button',
+    { class: 'menu-btn menu-new', type: 'button' },
+    el('span', { class: 'btn-index', text: '02' }),
+    newLabel,
+    newTail,
+  ) as HTMLButtonElement
+
+  const settingsBtn = el(
+    'button',
+    { class: 'menu-btn menu-settings', type: 'button', 'aria-expanded': 'false' },
+    el('span', { class: 'btn-index', text: '03' }),
+    el('span', { class: 'btn-label', text: '设置' }),
+    el('span', { class: 'btn-tail', text: 'SETTINGS' }),
+  ) as HTMLButtonElement
+
+  const exitBtn = el(
+    'button',
+    { class: 'menu-btn menu-exit', type: 'button' },
+    el('span', { class: 'btn-index', text: '04' }),
+    el('span', { class: 'btn-label', text: '退出游戏' }),
+    el('span', { class: 'btn-tail', text: 'EXIT' }),
+  ) as HTMLButtonElement
+
   const newHint = el('p', { class: 'menu-hint' })
+  const saveLine = el('div', { class: 'menu-save-line' })
+
+  const settingsSaveDetail = el('p', { class: 'setting-note' })
+  const clearBtn = el('button', {
+    class: 'text-btn settings-clear',
+    type: 'button',
+    text: '清除存档',
+  }) as HTMLButtonElement
+
+  const closeSettingsBtn = el('button', {
+    class: 'modal-close settings-close',
+    type: 'button',
+    'aria-label': '关闭设置',
+    text: '×',
+  }) as HTMLButtonElement
+
+  const motionInput = el('input', {
+    class: 'switch-input',
+    type: 'checkbox',
+    'aria-label': '减少界面动画',
+  }) as HTMLInputElement
+  motionInput.checked = settings.reduceMotion
+
+  const motionSwitch = el(
+    'label',
+    { class: 'switch' },
+    motionInput,
+    el('span', { class: 'switch-track', 'aria-hidden': 'true' }),
+  )
+
+  const settingsOverlay = el(
+    'div',
+    { class: 'menu-overlay menu-settings-overlay' },
+    el(
+      'section',
+      { class: 'settings-panel', role: 'dialog', 'aria-modal': 'true', 'aria-label': '设置' },
+      el(
+        'div',
+        { class: 'settings-head' },
+        el(
+          'div',
+          {},
+          el('p', { class: 'kicker', text: 'SYSTEM' }),
+          el('h2', { text: '设置' }),
+        ),
+        closeSettingsBtn,
+      ),
+      el(
+        'div',
+        { class: 'settings-body' },
+        settingRow('减少界面动画', '关闭按钮、面板与覆盖层的过渡效果。', motionSwitch),
+        settingRow('本局存档', '存档只保存在这台电脑的 localStorage 里。', clearBtn),
+        settingsSaveDetail,
+      ),
+      el(
+        'div',
+        { class: 'settings-foot' },
+        el('span', { text: 'TANK WORKS v0.2 · 单机版' }),
+        el('span', { text: '本地运行 · 无运行时依赖' }),
+      ),
+    ),
+  ) as HTMLDivElement
+  settingsOverlay.hidden = true
+
+  const exitBackBtn = el('button', {
+    class: 'menu-btn exit-back',
+    type: 'button',
+    text: '返回主菜单',
+  }) as HTMLButtonElement
+  const exitOverlay = el(
+    'div',
+    { class: 'menu-overlay menu-exit-overlay' },
+    el(
+      'section',
+      { class: 'exit-panel', role: 'dialog', 'aria-modal': 'true', 'aria-label': '游戏已退出' },
+      el('div', { class: 'brand-mark exit-mark', text: '▚', 'aria-hidden': 'true' }),
+      el('p', { class: 'kicker', text: 'TANK WORKS' }),
+      el('h2', { text: '游戏已退出' }),
+      el('p', { class: 'exit-note', text: '这一局已经留在本地存档里。关闭这个标签页，或者回到主菜单。' }),
+      exitBackBtn,
+    ),
+  ) as HTMLDivElement
+  exitOverlay.hidden = true
+
+  function renderSaveState(): void {
+    const hasSave = save !== null
+    loadBtn.disabled = !hasSave
+    loadBtn.classList.toggle('menu-btn-primary', hasSave)
+    newBtn.classList.toggle('menu-btn-primary', !hasSave)
+    const loadTail = loadBtn.querySelector('.btn-tail')
+    if (loadTail) loadTail.textContent = hasSave ? (save?.over ? 'REPORT' : 'CONTINUE') : 'NO SAVE'
+    clearBtn.disabled = !hasSave
+    settingsSaveDetail.textContent = save
+      ? `当前存档：${formatDate(save.day)} · ${money(save.cash)}`
+      : '当前没有存档。'
+
+    saveLine.replaceChildren()
+    if (!save) {
+      saveLine.append(
+        el('span', { class: 'dot dim' }),
+        el('span', { class: 'save-line-text', text: '没有可加载的存档 · 从 1915 年开始新的一局' }),
+      )
+      return
+    }
+    const s = save
+    const techs = Object.values(s.research.mastered).filter((v) => v > 0).length
+    saveLine.append(
+      el('span', { class: 'dot' }),
+      el('span', { class: 'save-date', text: formatDate(s.day) }),
+      el('span', { class: 'save-line-sep', text: '·' }),
+      el('span', { class: 'save-line-text', text: `${ERAS[s.era]?.name ?? ''} · ${nationName(s.home)}` }),
+      el('span', { class: 'save-line-sep', text: '·' }),
+      el('span', { class: 'save-line-money', text: money(s.cash) }),
+      el('span', { class: 'save-line-sep', text: '·' }),
+      el('span', { class: 'save-line-text', text: `${techs} 条科技` }),
+      el('span', { class: 'save-line-sep', text: '·' }),
+      el('span', { class: 'save-line-text', text: `信誉 ${s.rep}` }),
+    )
+  }
 
   function disarm(): void {
     armed = false
     window.clearTimeout(armTimer)
     newBtn.classList.remove('danger')
-    newBtn.textContent = save ? '新游戏' : '开始新游戏'
+    newLabel.textContent = '新游戏'
+    newTail.textContent = 'NEW GAME'
     newHint.textContent = ''
   }
+
+  function resetClear(): void {
+    clearArmed = false
+    window.clearTimeout(clearTimer)
+    clearBtn.classList.remove('danger')
+    clearBtn.textContent = '清除存档'
+  }
+
+  function openSettings(): void {
+    settingsOverlay.hidden = false
+    settingsBtn.setAttribute('aria-expanded', 'true')
+    closeSettingsBtn.focus()
+  }
+
+  function closeSettings(): void {
+    settingsOverlay.hidden = true
+    settingsBtn.setAttribute('aria-expanded', 'false')
+    resetClear()
+  }
+
+  function openExit(): void {
+    exitOverlay.hidden = false
+    exitBackBtn.focus()
+  }
+
+  function closeExit(): void {
+    exitOverlay.hidden = true
+    exitBtn.focus()
+  }
+
+  loadBtn.addEventListener('click', () => {
+    if (save) navigate('./game.html')
+  })
 
   newBtn.addEventListener('click', () => {
     if (save && !armed) {
       armed = true
       newBtn.classList.add('danger')
-      newBtn.textContent = '再点一次：覆盖存档并重开'
+      newLabel.textContent = '再点一次：覆盖存档'
+      newTail.textContent = 'CONFIRM'
       newHint.textContent = '这会清掉当前这一局的存档、科技快照和设计交接。'
       armTimer = window.setTimeout(disarm, 5000)
       return
@@ -125,110 +310,87 @@ export function mountMenu(root: HTMLElement, opts: MenuOptions = {}): void {
     navigate('./game.html?day=0')
   })
 
-  const saveCard = el('section', { class: 'save-card' })
-  if (save) {
-    const s = save
-    const techs = Object.values(s.research.mastered).filter((v) => v > 0).length
-    const status = s.over ? '已结束' : s.contract ? `订单：${s.contract.nation} ${s.contract.qty} 台` : '空档期 · 可接单'
-    saveCard.append(
-      el('div', { class: 'save-kicker' }, el('span', { class: 'dot' }), '当前存档'),
-      el('div', { class: 'save-date', text: formatDate(s.day) }),
-      el('div', { class: 'save-era', text: `${ERAS[s.era]?.name ?? ''} · ${nationName(s.home)}` }),
-      el(
-        'div',
-        { class: 'save-grid' },
-        el('div', { class: 'save-stat' }, el('span', { text: '现金' }), el('strong', { text: money(s.cash) })),
-        el('div', { class: 'save-stat' }, el('span', { text: '信誉' }), el('strong', { text: `${s.rep} / 100` })),
-        el('div', { class: 'save-stat' }, el('span', { text: '产品' }), el('strong', { text: s.design.name })),
-        el('div', { class: 'save-stat' }, el('span', { text: '科技' }), el('strong', { text: `${techs} 条` })),
-      ),
-      el('div', { class: 'save-status', text: status }),
-    )
-  } else {
-    saveCard.append(
-      el('div', { class: 'save-kicker' }, el('span', { class: 'dot dim' }), '还没有存档'),
-      el('div', { class: 'save-empty-title', text: '从 1915 年开始' }),
-      el('p', {
-        class: 'save-empty-text',
-        text: '开局选国家、接第一份标；研发、设计、产能扩张都在主循环里。',
-      }),
-    )
-  }
+  settingsBtn.addEventListener('click', openSettings)
+  closeSettingsBtn.addEventListener('click', closeSettings)
+  settingsOverlay.addEventListener('click', (event) => {
+    if (event.target === settingsOverlay) closeSettings()
+  })
 
-  const header = el(
-    'header',
-    { class: 'menu-top' },
+  motionInput.addEventListener('change', () => {
+    settings.reduceMotion = motionInput.checked
+    storage.write(SETTINGS_KEY, JSON.stringify(settings))
+    applySettings(settings)
+  })
+
+  clearBtn.addEventListener('click', () => {
+    if (!save) return
+    if (!clearArmed) {
+      clearArmed = true
+      clearBtn.classList.add('danger')
+      clearBtn.textContent = '确认清除'
+      clearTimer = window.setTimeout(resetClear, 4000)
+      return
+    }
+    for (const key of RUN_KEYS) {
+      try {
+        storage.remove(key)
+      } catch {
+        /* 同新游戏：清不掉也不让菜单崩 */
+      }
+    }
+    save = null
+    renderSaveState()
+    resetClear()
+    closeSettings()
+    newHint.textContent = '存档已清除，可以从 1915 年重新开始。'
+    newBtn.focus()
+  })
+
+  exitBtn.addEventListener('click', openExit)
+  exitBackBtn.addEventListener('click', closeExit)
+  exitOverlay.addEventListener('click', (event) => {
+    if (event.target === exitOverlay) closeExit()
+  })
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return
+    if (!settingsOverlay.hidden) closeSettings()
+    else if (!exitOverlay.hidden) closeExit()
+  })
+
+  const brand = el(
+    'div',
+    { class: 'menu-brand', 'aria-label': 'TANK WORKS 坦克厂' },
+    el('div', { class: 'brand-mark', text: '▚', 'aria-hidden': 'true' }),
     el(
       'div',
-      { class: 'brand' },
-      el('span', { class: 'brand-mark', text: '▚' }),
-      el(
-        'div',
-        {},
-        el('h1', { text: 'TANK WORKS' }),
-        el('p', { text: '坦克厂 · 1915—1991' }),
-      ),
+      { class: 'brand-copy' },
+      el('p', { class: 'brand-kicker', text: '装甲车辆设计与制造' }),
+      el('h1', { text: 'TANK WORKS' }),
+      el('p', { class: 'brand-sub', text: '坦克厂 · 1915—1991' }),
     ),
-    el('span', { class: 'menu-version', text: 'v0.2 · 单机版' }),
   )
 
-  const hero = el(
-    'main',
-    { class: 'menu-hero' },
+  const stage = el(
+    'div',
+    { class: 'menu-stage' },
     el(
       'section',
-      { class: 'hero-copy' },
-      el('p', { class: 'kicker', text: '装甲车辆设计与制造' }),
-      el('h2', {}, '从一间铁皮棚，', el('br'), '造到主战坦克。'),
-      el('p', {
-        class: 'lede',
-        text: '选国家、研发技术、设计车辆、抢标交付。七十七年，一条产线，一本账。',
-      }),
-      el('div', { class: 'menu-actions' }, continueBtn, newBtn),
+      { class: 'menu-panel' },
+      brand,
+      el('div', { class: 'menu-nav' }, loadBtn, newBtn, settingsBtn, exitBtn),
       newHint,
+      saveLine,
+      el(
+        'div',
+        { class: 'menu-meta' },
+        el('span', { text: 'v0.2 · 单机版' }),
+        el('span', { text: '本地存档 / localStorage' }),
+      ),
     ),
-    saveCard,
+    el('div', { class: 'menu-art', 'aria-hidden': 'true' }),
   )
 
-  const strip = el(
-    'section',
-    { class: 'menu-strip' },
-    el('div', { class: 'strip-item' }, el('strong', { text: '77' }), el('span', { text: '年经营跨度' })),
-    el('div', { class: 'strip-item' }, el('strong', { text: '159' }), el('span', { text: '条科技' })),
-    el('div', { class: 'strip-item' }, el('strong', { text: '19' }), el('span', { text: '辆历史车校准' })),
-    el('div', { class: 'strip-item' }, el('strong', { text: '3' }), el('span', { text: '条产线上限' })),
-  )
-
-  const modules = el(
-    'section',
-    { class: 'modules' },
-    el('div', { class: 'modules-head' }, el('span', { text: '游戏内四个局' }), el('span', { class: 'line' })),
-    el(
-      'div',
-      { class: 'module-grid' },
-      moduleCard('01', '主循环', '接单、备料、排产、交付、回款；研发、贷款、关厂报告。', './game.html', '进入这一局'),
-      moduleCard('02', '设计局', '六个槽位、四维评分、弹道三轴、成本与缺陷。', undefined, '游戏内 · 产品面板「设计本厂车」'),
-      moduleCard('03', '研发局', '159 条科技树，超前更贵、落后打折；槽位与速度升级。', undefined, '游戏内 · 研发面板'),
-      moduleCard('04', '制造局', '多线、仓库、学习曲线、人力与班次；游说局在同一局里。', undefined, '游戏内 · 产线 / 订单面板'),
-    ),
-  )
-
-  const footer = el(
-    'footer',
-    { class: 'menu-foot' },
-    el(
-      'div',
-      { class: 'foot-links' },
-      el('a', { href: 'README.md', target: '_blank', rel: 'noreferrer' }, 'README'),
-      el('a', { href: 'docs/DESIGN.md', target: '_blank', rel: 'noreferrer' }, '设计文档'),
-      el('a', { href: 'docs/STATUS.md', target: '_blank', rel: 'noreferrer' }, '进度 / 待办'),
-      el('a', { href: './tank.html', target: '_blank', rel: 'noreferrer' }, '独立设计页'),
-      el('a', { href: './research.html', target: '_blank', rel: 'noreferrer' }, '研发规划页'),
-      el('a', { href: 'https://github.com/JiangYiJiang/tank-works', target: '_blank', rel: 'noreferrer' }, 'GitHub'),
-    ),
-    el('span', { class: 'foot-note', text: '本地运行 · 无运行时依赖 · 存档在本机 localStorage' }),
-  )
-
-  root.replaceChildren(el('div', { class: 'menu' }, header, hero, strip, modules, footer))
-  if (save) continueBtn.focus()
+  root.replaceChildren(el('div', { class: 'menu' }, stage, settingsOverlay, exitOverlay))
+  renderSaveState()
 }

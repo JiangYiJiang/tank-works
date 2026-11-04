@@ -12,7 +12,7 @@
 | 模块 | 状态 | 一句话 |
 |---|---|---|
 | 设计局 · 物理模型 | ✅ 完成 | 六槽位 → 七步管线；19 辆历史车全部落在门限内 |
-| 主菜单 | ✅ 完成 | 继续存档、两次确认新游戏、四个入口 |
+| 主菜单 | ✅ 完成 | 加载游戏、新游戏、设置、退出；左侧 logo，右侧背景预留 |
 | 设计局 · 界面 | ✅ 完成 | 四维、19 项物理量、耦合与代价、弹道三轴、成本、缺陷 |
 | 时钟与事件 | ✅ 完成 | 28,124 天、8 时代、29 条快讯；存档有上限（1,116 B → 3,979 B） |
 | 研发局 · 数据与节奏 | ✅ 完成 | 159 条技术 / 65 梯子 / 7 泳道；槽月预算 + 九策略 |
@@ -25,7 +25,7 @@
 
 **一句话：主循环能转、科技树能推、设计能卖、标能抢、阵营能卡、钱能借、线能加、账能算；联机不做。**
 
-检查台现状：`npm run check` = 类型检查 + 13 个检查台，**425 项断言全绿**（见 §1.13）。
+检查台现状：`npm run check` = 类型检查 + 13 个检查台，**445 项断言全绿**（见 §1.13）。
 
 ---
 
@@ -157,13 +157,14 @@
 
 ### 1.12 主菜单 ✅
 
-- 根路径 `/` 是入口页，不再自动跳游戏
-- 有存档时显示日期 / 时代 / 国家 / 现金 / 信誉 / 产品 / 科技数，可「继续游戏」
-- 「新游戏」两次确认：清 v7 与 legacy 存档、科技快照、设计交接，带 `?day=0` 开新局
-- 四个入口卡：主循环 / 设计局 / 研发局 / 制造局
-- 响应式：窄屏单列，按钮全宽
+- 根路径 `/` 是入口页，深色蓝图风；左栏 logo + 四个按钮，右栏预留背景图位置
+- **加载游戏**：有存档时可用，摘要显示日期 / 时代 / 国家 / 现金 / 信誉 / 科技数；无存档时禁用
+- **新游戏**：有存档时两次确认，清 v7 与 legacy 存档、科技快照、设计交接，带 `?day=0` 开新局；无存档时一次进入
+- **设置**：减少界面动画（`tank-works.settings.v1`）、查看并两次确认清除本局存档
+- **退出游戏**：进入退出页；浏览器不能可靠关闭标签页，所以提供「返回主菜单」
+- 响应式：窄屏单列、按钮全宽；右侧背景区在窄屏隐藏
 
-**验证**：`npm run menu` → **16 项断言**（无存档禁用、有存档摘要、两次确认、清理与导航）
+**验证**：`npm run menu` → **36 项断言**（四按钮、logo、存档摘要、设置开关/清档、退出页、两次确认）
 
 ### 1.13 检查台
 
@@ -182,10 +183,10 @@
 | 经济 | `npm run economy` | 96 | ✅ |
 | 设计局界面 | `npm run smoke:tank` | 37 | ✅ |
 | 游戏壳界面 | `npm run smoke:game` | 102 | ✅ |
-| 主菜单界面 | `npm run menu` | 16 | ✅ |
+| 主菜单界面 | `npm run menu` | 36 | ✅ |
 | 研发局界面 | `npm run smoke:research` | 27 | ✅ |
 | 制造局界面 | `npm run smoke:mf` | 21 | ✅ |
-| **合计** | | **425 项断言** | |
+| **合计** | | **445 项断言** | |
 
 ---
 
@@ -327,7 +328,7 @@
 npm run dev            # 四个页面，127.0.0.1:5273
 npm run build          # 类型检查 + 打包到 dist/（相对路径，可 file:// 打开）
 npm run preview        # 本地预览打包结果
-npm run check          # 425 项断言的完整回归，提交前跑这个
+npm run check          # 445 项断言的完整回归，提交前跑这个
 
 # 单个检查台
 npm run design         # 19 辆历史车校准
@@ -338,7 +339,7 @@ npm run clock          # 时钟/存档验收
 npm run research       # 研发验收（开工、槽位、闸门、迁移）
 npm run metrics        # 设计局指标验收（抗破、装填、倒车、俯仰）
 npm run scale          # 经济尺度（8 个时代的毛利 / 工期 / 首单技术）
-npm run menu           # 主菜单（存档摘要、继续、两次确认、入口）
+npm run menu           # 主菜单（四按钮、存档摘要、设置、退出）
 npm run economy        # 经济闭环验收（接单 → 交付 → 回款）
 npm run smoke:tank     # 设计局界面
 npm run smoke:game     # 游戏壳界面
@@ -403,7 +404,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **M1 简化（已替换）**：空档期不烧维持费；换型即时免费；多线/贷款/信誉/竞品/贿赂/结算总表后来已接。
 
-**验证**：`npm run check` → 425 项断言；`npm run economy` → 96 项；`npm run smoke:game` → 102 项。
+**验证**：`npm run check` → 445 项断言；`npm run economy` → 96 项；`npm run smoke:game` → 102 项。
 
 ---
 
@@ -418,7 +419,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 数据修正：`ww2_simple` 年代 1944 → 1941（否则 T-34/76 会被判成超前 3 年，见 `data/parts.ts`）
 - 年代闸门：`designYear ≤ 当前年份 + 2`，同时在 `acceptOffer` 里兜底，防止绕过 UI
 
-**验证**：`npm run check` → 425 项；`smoke:tank` 37；`smoke:game` 102；`economy` 96。
+**验证**：`npm run check` → 445 项；`smoke:tank` 37；`smoke:game` 102；`economy` 96。
 
 ---
 
@@ -458,7 +459,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **刻意不进评分**：装填 / 倒车 / 俯仰只进读数，避免 19 辆历史车分数漂移（决策 31）。
 
-**验证**：`npm run metrics` → 13 项；`smoke:tank` 37；`check` 425。
+**验证**：`npm run metrics` → 13 项；`smoke:tank` 37；`check` 445。
 
 ---
 
@@ -556,21 +557,23 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **决定：暂不做多合同**（选 B）。当前一局的核心决策已经够多（国家/产品/研发/接单方式/产能），多合同会先把 UI 与存档复杂度翻倍，而收益主要是后期。等核心循环稳定后再评估 A。
 
-**验证**：`npm run research` 49；`npm run metrics` 13；`smoke:tank` 37；`check` 425。
+**验证**：`npm run research` 49；`npm run metrics` 13；`smoke:tank` 37；`check` 445。
 
 ---
 
-## 附录 K：主菜单（2026-11-03）
+## 附录 K：主菜单（2026-11-03，2026-11-04 重构）
 
-**新增**：
+**新增 / 重构**：
 
 - `index.html` 从自动跳转改成入口页；`src/tank/menu-entry.ts` 挂载
-- `src/tank/menu-main.ts`：读 v7/legacy 存档做摘要；继续 / 新游戏 / 四个入口
+- `src/tank/menu-main.ts`：读 v7/legacy 存档做摘要；四个按钮「加载游戏 / 新游戏 / 设置 / 退出游戏」
+- 左栏 logo + 按钮；右栏 `.menu-art` 只留背景图占位
+- 设置覆盖层：减少界面动画、两次确认清除本局存档；退出覆盖层：可返回主菜单
 - 新游戏两次确认，清 v7 + legacy + 科技快照 + 设计交接，带 `?day=0` 开新局
 - `src/tank/menu.css`：深色蓝图风、响应式；`docs/images/menu.png`
 - `src/platform/save-keys.ts`：存档键集中，壳与菜单共用
 
-**验证**：`npm run menu` 16；`check` 425。
+**验证**：`npm run menu` 36；`check` 445。
 
 ---
 
@@ -584,4 +587,4 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 点应用后 `postMessage` 回主循环；主循环用 `buildTank` + `designCheck` 再校验，通过后替换 `state.design`
 - 关闭覆盖层清草稿；科技快照仍由主循环发布，零件表按当前科技过滤
 
-**验证**：`smoke:game` 102；`check` 425。
+**验证**：`smoke:game` 102；`check` 445。

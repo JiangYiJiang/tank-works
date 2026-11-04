@@ -1541,11 +1541,13 @@ v1–v6 老存档可以读：产品默认 FT-17，没有产线与订单，研发
 
 | 页面 | 路径 | 入口文件 | 用途 | 状态 |
 |---|---|---|---|---|
-| 主菜单 | `/` | `index.html` / `src/tank/menu-entry.ts` | 继续存档、新游戏、四个入口 | ✅ 入口页 |
+| 主菜单 | `/` | `index.html` / `src/tank/menu-entry.ts` | 加载游戏、新游戏、设置、退出；左侧 logo，右侧背景预留 | ✅ 入口页 |
 | 游戏壳 | `/game.html` | `src/tank/game/main.ts` | 日历、产品、招标、产线、现金、研发；产品面板进设计覆盖层 | ✅ 可玩闭环 |
 | 设计局（预览） | `/tank.html` | `src/tank/main.ts` | 拼车、看四维、看代价、按科技过滤；游戏内用 `?embedded=1` | ✅ 预览 / 调试 |
 | 研发局 | `/research.html` | `src/tank/research-main.ts` | 科技树、超前/追赶、落后年数 | ✅ 可用 |
 | 制造局 | `/manufacture.html` | `src/tank/manufacture-main.ts` | 产线、仓库、学习曲线 | ✅ 独立试算页（主循环同一模型） |
+
+**主菜单布局**：左栏是 logo 与四个动作（加载 / 新游戏 / 设置 / 退出），右栏 `.menu-art` 是背景图占位，内容待定；退出按钮进入退出页，不调用 `window.close()`。设置键 `tank-works.settings.v1` 目前只存「减少界面动画」。
 
 **统一视觉**：蓝图风格。深底 `#0b0d10` + 24px 细网格 + 琥珀色 `#d9a24e` 强调；等宽数字（`font-variant-numeric: tabular-nums`），因为这是份仪表盘，不是海报。
 
@@ -1817,7 +1819,7 @@ npm install           # 首次
 npm run dev           # 开发服务器 127.0.0.1:5273，四个页面
 npm run build         # 构建到 dist/（四个入口，相对路径）
 npm run preview       # 预览打包结果
-npm run check         # 全部检查：类型 + 校准 + 节奏 + 五套冒烟 + 研发 + 指标 + 经济 + 尺度（425 项断言）
+npm run check         # 全部检查：类型 + 校准 + 节奏 + 五套冒烟 + 研发 + 指标 + 经济 + 尺度（445 项断言）
 
 npm run design        # 19 辆历史车校准表
 npm run ballistics    # 弹道两轴表
@@ -1831,7 +1833,7 @@ npm run economy       # 经济闭环验收（竞品、压价、贿赂、审计�
 
 npm run smoke:tank    # 设计局界面 37 项
 npm run smoke:game    # 游戏壳界面 102 项
-npm run menu          # 主菜单界面 16 项
+npm run menu          # 主菜单界面 36 项
 npm run smoke:research # 研发局界面 27 项
 npm run smoke:mf      # 制造局界面 21 项
 
