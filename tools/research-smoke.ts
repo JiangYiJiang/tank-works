@@ -108,11 +108,11 @@ check('有「清空重来」按钮', clear !== undefined)
 check('有「回到按部就班」按钮', restore !== undefined)
 
 clear?.click()
-check('清空后一条都没掌握', flat().includes('0 / 58 条'), flat().slice(0, 300))
+check('清空后一条都没掌握', flat().includes(`0 / ${available1939} 条`), flat().slice(0, 300))
 check('清空后最大落后变成在线上之外的值', flat().includes('最大落后 27 年') || !flat().includes('最大落后 在线上'))
 
 restore?.click()
-check('恢复后回到 58 / 58', flat().includes('58 / 58 条'), flat().slice(0, 300))
+check('恢复后回到按部就班基线', flat().includes(`${available1939} / ${available1939} 条`), flat().slice(0, 300))
 
 // ── 换年份 ────────────────────────────────────────────────
 

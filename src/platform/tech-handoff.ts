@@ -35,6 +35,7 @@ export function readTech(): TechSnapshot | null {
     const limits = o.limits
     const parts = o.parts
     const mods = o.mods
+    const howitzerCaliberMax = num(limits?.howitzerCaliberMax) ? limits.howitzerCaliberMax : 0
     if (
       !num(o.at) ||
       !num(o.year) ||
@@ -58,7 +59,11 @@ export function readTech(): TechSnapshot | null {
     ) {
       return null
     }
-    return { ...(o as TechSnapshot), mods: mods ?? { labor: 1, charge: 1 } }
+    return {
+      ...(o as TechSnapshot),
+      limits: { ...limits, howitzerCaliberMax },
+      mods: mods ?? { labor: 1, charge: 1 },
+    }
   } catch {
     return null
   }

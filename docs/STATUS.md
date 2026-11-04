@@ -18,7 +18,7 @@
 | Windows 桌面版 | ✅ 首版 | Electron 壳；窗口/窗口化全屏/全屏、音量设置；NSIS + portable exe |
 | 设计局 · 界面 | ✅ 完成 | 四维、19 项物理量、耦合与代价、弹道三轴、成本、缺陷 |
 | 时钟与事件 | ✅ 完成 | 28,124 天、8 时代、29 条快讯；存档有上限（1,116 B → 3,979 B） |
-| 研发局 · 数据与节奏 | ✅ 完成 | 159 条技术 / 65 梯子 / 7 泳道；槽月预算 + 九策略 |
+| 研发局 · 数据与节奏 | ✅ 完成 | 161 条技术 / 66 梯子 / 7 板块；槽月预算 + 九策略 |
 | 研发局 · 读图界面 | ✅ 完成（规划工具） | 不存档、不进主循环，用来量「落后几年」 |
 | 研发局 · 游戏内 | ✅ v2 | 6 个科研槽（解锁/升级/占位经济）、完整科技树、前置连线、弹窗工期；零件与倾角/口径/倍径/装药闸门 |
 | 制造局 · 模型 | ✅ 完成 | 产线状态机、Wright 学习曲线、分材质仓库、成本 |
@@ -28,7 +28,7 @@
 
 **一句话：主循环能转、科技树能推、设计能卖、标能抢、市场全开、钱能借、线能加、账能算；能打成 Windows exe；阵营系统待重做，联机不做。**
 
-检查台现状：`npm run check` = 类型检查 + 14 个检查台，**594 项断言全绿**（见 §1.16）。
+检查台现状：`npm run check` = 类型检查 + 15 个检查台，**612 项断言全绿**（见 §1.16）。
 
 > **阵营系统暂关**：旧的 1939–45 同盟/轴心、1947–91 东西方分段已从代码移除，所有进入市场的国家都能供货，只排除本国。后续按法国 1940、美国 1917 这类历史事件重新设计。
 
@@ -40,7 +40,7 @@
 
 ### 1.1 设计局物理模型（第 1 步）✅
 
-- 18 车体 / 6 装甲材料 / 19 火炮 / 17 发动机 / 18 悬挂 / 12 辅助套件
+- 19 车体 / 6 装甲材料 / 20 火炮 / 18 发动机 / 19 悬挂 / 13 辅助套件
 - 七步管线：几何 → 乘员 → 质量（迭代 4 次）→ 防护 → 弹道 → 机动 → 适应 → 评分 → 成本 → 缺陷
 - **抗穿 / 抗破**两套等效厚度；**装填 / 倒车 / 俯仰**三项读数；破甲弹按抗破判定
 - 19 辆历史车全部落在门限内
@@ -69,16 +69,17 @@
 
 ### 1.4 研发局数据与节奏（第 4 步前半）✅
 
-- 159 条技术 / 65 梯子 / 7 泳道 / 34 条开局自带（还有 11 条 1992 年后的终局清单）
+- 161 条技术 / 66 梯子 / 7 板块 / 35 条开局自带（还有 11 条 1992 年后的终局清单）
 - 超前惩罚 `1.5^(年/3)`、追赶折扣 `max(0.5, 1.5^(-年/6))`
 - 5 个旧槽位升级 + 2 个旧速度升级仍留在数据表（游戏内改用 6 槽 / 每槽 4 级，见 §1.17；旧升级维护费尚未接线，见 §3）
+- 口径拆成加农炮 / 榴弹炮两条线：榴弹炮 1939 解锁 152mm 短管（M-10T 1940），加农炮口径仍按 57/76/88/122/125 逐级开放
 - 槽月预算模型 + 九种策略模拟 + 三条回归门限
 
-**验证**：`npm run tech` → 满配 4,077 槽月 / 3,500 需求 / 86% 利用率；三条规定全部满足，`exit 0`
+**验证**：`npm run tech` → 满配 4,077 槽月 / 3,512 需求 / 86% 利用率；三条规定全部满足，`exit 0`
 
 ### 1.5 研发局界面（第 4 步后半）✅
 
-- 1912–1991 时间轴，7 条泳道，方块按年份定位并自动叠行
+- 1912–1991 时间轴，7 个板块，方块按年份定位并自动叠行
 - 四种状态、超前倍率、今天竖线、落后年数
 - 检视器：「今年开工实际要付」+ 前置 + 效果 + 系数
 - 默认「按部就班」基线，可逐个删除 / 恢复
@@ -147,7 +148,7 @@
 ### 1.11 研发局接进游戏 ✅
 
 - `GameState.research`：已掌握技术（ladder → tier）、在研项目、科研槽（`slots`）、槽位建造（`build`）
-- 开局掌握 34 条（每条梯子最高开局代）、1 个科研槽；一条梯子同时只能研一项，项目占一个空闲槽（`project.slot`）
+- 开局掌握 35 条（每条梯子最高开局代）、1 个科研槽；一条梯子同时只能研一项，项目占一个空闲槽（`project.slot`）
 - 项目按天推进 `days / 30.44 × 槽速 × 时代强度` 槽月；开工付研发费，完成时解锁
 - 科研槽最多 6 个、每槽 1–4 级；解锁/升级花时间和钱，升级期间该槽不可用；槽速 `1.15^(level-1)`，维护费只在有在研项目时扣（数值占位）
 - **零件闸门**：每个板块 `boardYear = max(已掌握代 year, 1915)`，零件 `era ≤ boardYear + 2`
@@ -202,7 +203,7 @@
 - **设置**：`tank-works.settings.v1` 统一存 `displayMode / masterVolume / musicVolume / sfxVolume / reduceMotion`，兼容旧版只有 `reduceMotion` 的存档；音量目前只持久化，音频资源尚未接入
 - **桌面桥**：`desktop/preload.ts` 通过 contextBridge 暴露 `window.tankWorksDesktop`（`getDisplayMode / setDisplayMode / quit`），不透传 `ipcRenderer`；浏览器里模式按钮禁用
 - **打包**：`npm run desktop:pack` → electron-builder 生成 NSIS 安装包 + portable exe；图标 `build/icon.ico`，产品名 `Tank Works`
-- **验证**：`npm run check` 594 项；`npm run build` exit 0；`release/win-unpacked/Tank Works.exe` 冒烟启动，window / borderless / fullscreen 三种模式均通过（fullscreen `isFullScreen=true`，borderless 1920×1035，window 1280×800 可缩放）
+- **验证**：`npm run check` 612 项；`npm run build` exit 0；`release/win-unpacked/Tank Works.exe` 冒烟启动，window / borderless / fullscreen 三种模式均通过（fullscreen `isFullScreen=true`，borderless 1920×1035，window 1280×800 可缩放）
 
 **产物**：`release/Tank Works-0.2.0-x64.exe`（安装包）、`release/Tank Works-0.2.0-portable.exe`（免安装）。
 
@@ -219,6 +220,7 @@
 | 时钟 | `npm run clock` | 31 | ✅ |
 | 研发 | `npm run research` | 49 | ✅ |
 | 科研槽 | `npm run research:slots` | 37 | ✅ |
+| 口径/倍径分流 | `npm run gun` | 18 | ✅ |
 | 设计指标 | `npm run metrics` | 13 | ✅ |
 | 经济尺度 | `npm run scale` | 33 | ✅ |
 | 经济 | `npm run economy` | 96 | ✅ |
@@ -230,16 +232,17 @@
 | 游戏主界面 | `npm run dashboard` | 46 | ✅ |
 | 研发局界面 | `npm run smoke:research` | 27 | ✅ |
 | 制造局界面 | `npm run smoke:mf` | 21 | ✅ |
-| **合计** | | **594 项断言** | |
+| **合计** | | **612 项断言** | |
 
 ### 1.17 研发局 v2：科研槽与科技树 ✅
 
 - **科研槽**：开局 1 个，最多 6 个；每槽 1–4 级，槽速 `1.15^(level-1)`。解锁/升级都要一次性费用 + 工期；升级期间该槽被占用，不能开工或继续项目。数值是占位，等经济系统统一设计后再校准。
 - **项目**：`startResearch` 自动挑第一个空闲槽，`project.slot` 记住位置；`advanceResearch` 同时推进槽位建造、单槽升级和所有在研项目。
-- **科技树**：`game/research-view.ts`；7 板块 / 65 泳道 / 159 张卡；1912–2020 横轴、当前年竖线、SVG 前置连线；卡片状态 done / researching / open / locked / horizon，超前与追赶徽标独立显示。
+- **科技树**：`game/research-view.ts`；7 板块 / 66 泳道 / 161 张卡；1912–2020 横轴、当前年竖线、SVG 前置连线；卡片状态 done / researching / open / locked / horizon，超前与追赶徽标独立显示。
 - **科技弹窗**：介绍、前置、基础工期、时间修正、槽速、时代强度、预计月数与完成日期、费用；预计月数 = `effortForTier().months / (slotSpeed × intensityAt(year))`。
+- **口径/倍径分流**：`gun.caliber` 只放加农炮；`gun.howitzer` 单独放短管榴弹炮。重型榴弹炮 1939 解锁 152mm 短管，M-10T（1940）因此可装进 KV-2；`GunDef.lowVelocity` 为真时走 `howitzerCaliberMax`，不会把高初速 152mm 顺带放开。
 - **存档**：仍为 v7；`coerceResearch` 兼容旧档（按旧 upgrades 补槽），新档保存 slots / build / project.slot。
-- **验证**：`npm run research:slots` 37；`npm run smoke:game` 107；`npm run dashboard` 46；`npm run check` 594。
+- **验证**：`npm run research:slots` 37；`npm run smoke:game` 107；`npm run dashboard` 46；`npm run check` 612。
 
 ---
 
@@ -318,12 +321,12 @@
 | T2 | **抗破（CE）** | ✅ 已进 `TankPhysical`、设计局读数与破甲弹判定 | 订单验收仍只看抗穿，等弹种要求再接 |
 | T3 | **破甲弹按 KE 判** | ✅ 自检已按 `b.shell === 'heat'` 切到 `armorFrontCe` | 不再拿动能等效打复合装甲 |
 | T4 | **部件全解锁** | ✅ 主循环发科技快照，设计局按白名单收窄；单独打开设计局（无快照）仍是沙盒 | 想卖车必须走主循环的科技状态，P2-15 已完成 |
-| T5 | **`ammo.pen.1` 已修** | ✅ 补 10 月 / ¥90k，前置接 `ammo.apcr.1`；`tech-budget` 现在 34 条开局、需求 3,500、二战 101% | 节奏表与文档已同步 |
+| T5 | **`ammo.pen.1` 已修** | ✅ 补 10 月 / ¥90k，前置接 `ammo.apcr.1`；`tech-budget` 现在 35 条开局、需求 3,512、二战 101% | 节奏表与文档已同步 |
 | T6 | **多线混产回款算错（制造局试算页）** | `manufacture.ts` 用 `factory.lines[0]` 的单价 × 全部产量 | 主循环是单线，暂时踩不到；多线版本要按线计价 |
 | T7 | **升级维护费未接线** | `SLOT_UPGRADES / SPEED_UPGRADES` 的 `upkeep` 字段没人读；`research.ts` 只算 `3,500 × 通胀 × 槽数` | 扩张成本被低估；DESIGN §7.6 已注明 |
 | T8 | **制造局接主循环** | ✅ M1 已接：`advanceDays()` 驱动产线，工厂状态进存档 | 制造局页保留为独立试算页 |
 | T9 | **经济尺度** | ✅ v1 标定：毛利 15–25%、单台 3–13 天、4 台小单够首项技术；单位未重定 | 只要接入真实军贸单价表，再反推成本/工资 |
-| T10 | **躺平三十年几乎不亏** | 1945 才开工仍拿 143/159，只比满配少 5 条 | 单看研发确实如此；真正的闸门必须是现金流 |
+| T10 | **躺平三十年几乎不亏** | 1945 才开工仍拿 143/161，只比满配少 5 条 | 单看研发确实如此；真正的闸门必须是现金流 |
 | T11 | **机动只有越野速度一个轴** | 虎王 8.9 hp/t 仍拿 4095 分 | 加吨功率/行程会破坏全部校准，需要重标 |
 | T12 | **研发进度只有「完成 / 未完成」** | 没有「投了 3 个月想放弃」的中断与沉没成本 | 现在研发局是读图工具，等接了主循环再补 |
 | T13 | **M1 的一串简化** | 空档期不烧维持费；换型即时且免费；单合同 | 多线/料价/贷款/尺度已补；只剩单合同 |
@@ -395,7 +398,7 @@ npm run desktop:dev    # Vite + Electron 开发窗口
 npm run desktop:build  # esbuild 打桌面壳
 npm run desktop:pack   # 构建 + 桌面壳 + electron-builder，产物在 release/
 npm run preview        # 本地预览打包结果
-npm run check          # 594 项断言的完整回归，提交前跑这个
+npm run check          # 612 项断言的完整回归，提交前跑这个
 
 # 单个检查台
 npm run design         # 19 辆历史车校准
@@ -502,7 +505,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 游戏壳「研发」面板：在研进度、可开工技术下拉、槽位/速度购买、科技完成自动暂停
 - 科技快照：主循环把 `parts` 白名单 + `limits` 写进 `tank-works.tech.v1`；设计局据此过滤下拉、倾角上限和 pike
 - 存档清洗：已掌握技术只接受 `TECH_BY_ID` 里存在的梯子/世代，在研项目与升级逐项校验
-- 数据修正：`ammo.pen.1` 补 10 月 / ¥90k，前置接 `ammo.apcr.1`；节奏表变为 34 条开局 / 3,500 槽月 / 二战 101%
+- 数据修正：`ammo.pen.1` 补 10 月 / ¥90k，前置接 `ammo.apcr.1`；节奏表变为 35 条开局 / 3,500 槽月 / 二战 101%
 
 **规则**：
 
@@ -706,7 +709,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `docs/images/dashboard.png`
 - `docs/images/founder.png`
 
-**验证**：`npm run world` 16；`npm run dashboard` 46；`npm run check` 594；`npm run build` 通过。
+**验证**：`npm run world` 16；`npm run dashboard` 46；`npm run check` 612；`npm run build` 通过。
 
 **明确留到后续**（见 P4-27…31）：
 
@@ -741,7 +744,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 写 `window-state.json` 的 UTF-8 BOM 会让 `JSON.parse` 失败并回退窗口模式；读时 `replace(/^\uFEFF/, '')`
 - 模式切换只能重建窗口（Electron 不能运行时改 `frame`）；因此设置只在主菜单提供
 
-**验证**：`npm run check` 594；`npm run build`；`release/win-unpacked/Tank Works.exe` 冒烟；window 1280×800 可缩放、borderless 1920×1035、fullscreen `isFullScreen=true`；打包产物 `Tank Works-0.2.0-x64.exe` 与 `Tank Works-0.2.0-portable.exe`。
+**验证**：`npm run check` 612；`npm run build`；`release/win-unpacked/Tank Works.exe` 冒烟；window 1280×800 可缩放、borderless 1920×1035、fullscreen `isFullScreen=true`；打包产物 `Tank Works-0.2.0-x64.exe` 与 `Tank Works-0.2.0-portable.exe`。
 
 **后续**：音频资源与播放逻辑（P1-19）；文件系统存档（P3-24）；代码签名；自动更新；模式内实时切换（自定义无边框标题栏）。
 
@@ -754,9 +757,9 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `sim/state.ts`：`ResearchState.slots`、`build`、`ResearchProject.slot`；`createResearch()` 1 槽。
 - `sim/research.ts`：`MAX_RESEARCH_SLOTS=6`、`MAX_SLOT_LEVEL=4`；每槽 `1.15^(level-1)` 槽速；解锁/升级任务按天推进；`startResearch` 自动选空闲槽。
 - `sim/save.ts`：`coerceResearch` 兼容旧档（按旧 upgrades 补槽），新档保存 slots/build/project.slot。
-- `game/research-view.ts`：左槽位面板 + 右科技树（7 板块/65 泳道/159 卡、SVG 前置连线、当前年竖线、弹窗）；`game/shell.ts` 的研发页改为挂载它。
+- `game/research-view.ts`：左槽位面板 + 右科技树（7 板块/66 泳道/161 卡、SVG 前置连线、当前年竖线、弹窗）；`game/shell.ts` 的研发页改为挂载它。
 - 占位经济：解锁 `120k + 80k×(target-2)` / `8 + 2×(target-2)` 月；升级 `90k + 40k×(level-1)` / `6 + 2×(level-1)` 月；每级月维持 `¥2,500`。
 
-**验证**：`npm run research` 49；`npm run research:slots` 37；`npm run smoke:game` 107；`npm run check` 594；截图 `docs/images/research-tree.png`。
+**验证**：`npm run research` 49；`npm run research:slots` 37；`npm run smoke:game` 107；`npm run check` 612；截图 `docs/images/research-tree.png`。
 
 **后续**：槽位经济数值校准（P4-32）；项目取消/退款；科技树缩放/折叠；研发完成后的零件/性能提示再打磨。

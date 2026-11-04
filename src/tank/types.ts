@@ -136,6 +136,8 @@ export interface GunDef {
   rounds: number
   /** 发射药水平 / 膛压系数：由该炮的真实炮口初速反推，是数据不是拟合值 */
   charge: number
+  /** 短管低膛压榴弹炮：口径受榴弹炮科技约束，不占用加农炮口径上限 */
+  lowVelocity?: boolean
   era: number
 }
 

@@ -257,7 +257,7 @@ export function mountResearch(root: HTMLElement): void {
     'div',
     { class: 'rs-titleblock' },
     el('h1', { class: 'rs-h1', text: '研发局' }),
-    el('p', { class: 'rs-sub', text: '七条泳道，159 条技术。竖线是今天 —— 线左边的才摸得到，右边的只是价签。' }),
+    el('p', { class: 'rs-sub', text: `七个板块、${new Set(TECH.map((t) => t.ladder)).size} 条泳道、${TECH.length} 条技术。竖线是今天 —— 线左边的才摸得到，右边的只是价签。` }),
   )
 
   const yearValue = el('div', { class: 'rs-yearv' })

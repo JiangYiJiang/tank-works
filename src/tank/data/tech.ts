@@ -41,7 +41,8 @@ export const LADDER_NAMES: Record<string, string> = {
   'armor.spall': '防崩落',
   'armor.layout': '炮塔布局',
   'armor.aps': '主动防护',
-  'gun.caliber': '口径上限',
+  'gun.caliber': '加农炮口径',
+  'gun.howitzer': '榴弹炮口径',
   'gun.barrel': '身管倍径',
   'gun.breech': '膛压承受',
   'gun.rifling': '膛线',
@@ -205,11 +206,27 @@ const AMMO: TechTier[] = [
 // ────────────────────────────────────────────────────────────
 
 const GUN: TechTier[] = [
-  T('gun.caliber', 1, '小口径炮', 1912, 0, 0, [], '口径上限 57mm'),
-  T('gun.caliber', 2, '中口径炮', 1916, 6, 40_000, ['gun.caliber.1'], '口径上限 76mm', { caliberMax: 76 }),
-  T('gun.caliber', 3, '大口径炮', 1937, 14, 130_000, ['gun.caliber.2'], '口径上限 88mm', { caliberMax: 88 }),
-  T('gun.caliber', 4, '超大口径炮', 1943, 14, 220_000, ['gun.caliber.3'], '口径上限 122mm', { caliberMax: 122 }),
-  T('gun.caliber', 5, '现代口径炮', 1961, 32, 420_000, ['gun.caliber.4'], '口径上限 125mm', { caliberMax: 125 }),
+  T('gun.caliber', 1, '小口径加农炮', 1912, 0, 0, [], '加农炮口径上限 57mm'),
+  T('gun.caliber', 2, '中口径加农炮', 1916, 6, 40_000, ['gun.caliber.1'], '加农炮口径上限 76mm', { caliberMax: 76 }),
+  T('gun.caliber', 3, '大口径加农炮', 1937, 14, 130_000, ['gun.caliber.2'], '加农炮口径上限 88mm', { caliberMax: 88 }),
+  T('gun.caliber', 4, '超大口径加农炮', 1943, 14, 220_000, ['gun.caliber.3'], '加农炮口径上限 122mm', { caliberMax: 122 }),
+  T('gun.caliber', 5, '现代加农炮', 1961, 32, 420_000, ['gun.caliber.4'], '加农炮口径上限 125mm', { caliberMax: 125 }),
+
+  // 大口径低速炮是另一条线：口径可以很大，但身管短、膛压低。
+  // 它让 1940 年的 152mm 短管榴弹炮（KV-2 一类）成立，同时不把
+  // 同年的高初速 152mm 放出来——后者仍要等加农炮口径、长身管和高膛压炮尾。
+  T('gun.howitzer', 1, '野战榴弹炮', 1912, 0, 0, [], '大口径低速炮：口径上限 76mm，短身管', { howitzerCaliberMax: 76 }),
+  T(
+    'gun.howitzer',
+    2,
+    '重型榴弹炮',
+    1939,
+    12,
+    180_000,
+    ['gun.howitzer.1', 'gun.breech.1'],
+    '152mm 短管榴弹炮：低膛压、低初速，能装进重型炮塔',
+    { howitzerCaliberMax: 152 },
+  ),
 
   T('gun.barrel', 1, '短身管', 1912, 0, 0, [], '倍径上限 30'),
   T('gun.barrel', 2, '中身管', 1936, 12, 90_000, ['gun.barrel.1'], '倍径上限 48', { barrelMax: 48 }),

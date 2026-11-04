@@ -55,8 +55,10 @@ export interface TechLimits {
   slopeMax: number
   /** 尖头首上收益；1 = 还没解锁 */
   pike: number
-  /** 口径上限 mm */
+  /** 加农炮口径上限 mm */
   caliberMax: number
+  /** 短管榴弹炮口径上限 mm；0 = 还没解锁 */
+  howitzerCaliberMax: number
   /** 身管上限（倍径） */
   barrelMax: number
   /** 装药上限 */
@@ -69,6 +71,7 @@ export const DEFAULT_LIMITS: TechLimits = {
   slopeMax: 20,
   pike: 1,
   caliberMax: 57,
+  howitzerCaliberMax: 0,
   barrelMax: 30,
   chargeMax: 0.6,
   labor: 1,
@@ -213,6 +216,9 @@ export function techLimits(r: ResearchState): TechLimits {
     if (t.fn.slopeMax !== undefined) limits.slopeMax = Math.max(limits.slopeMax, t.fn.slopeMax)
     if (t.fn.pike !== undefined) limits.pike = Math.max(limits.pike, t.fn.pike)
     if (t.fn.caliberMax !== undefined) limits.caliberMax = Math.max(limits.caliberMax, t.fn.caliberMax)
+    if (t.fn.howitzerCaliberMax !== undefined) {
+      limits.howitzerCaliberMax = Math.max(limits.howitzerCaliberMax, t.fn.howitzerCaliberMax)
+    }
     if (t.fn.barrelMax !== undefined) limits.barrelMax = Math.max(limits.barrelMax, t.fn.barrelMax)
     if (t.fn.chargeMax !== undefined) limits.chargeMax = Math.max(limits.chargeMax, t.fn.chargeMax)
     if (t.fn.labor !== undefined && t.year > laborYear) {
@@ -269,8 +275,10 @@ export function designCheck(design: TankDesign, r: ResearchState): DesignCheck {
   if (design.armor.pike && limits.pike <= 1) {
     return { ok: false, reason: '尖头首上（pike）还没研发' }
   }
-  if (gun.caliber > limits.caliberMax) {
-    return { ok: false, reason: `口径 ${gun.caliber}mm 超过当前上限 ${limits.caliberMax}mm（先研发大口径炮）` }
+  const caliberMax = gun.lowVelocity ? limits.howitzerCaliberMax : limits.caliberMax
+  if (gun.caliber > caliberMax) {
+    const label = gun.lowVelocity ? '短管榴弹炮口径' : '加农炮口径'
+    return { ok: false, reason: `${label} ${gun.caliber}mm 超过当前上限 ${caliberMax}mm（先研发大口径炮）` }
   }
   if (gun.barrelCalibers > limits.barrelMax) {
     return { ok: false, reason: `身管 ${gun.barrelCalibers} 倍径超过当前上限 ${limits.barrelMax}（先研发长身管）` }
@@ -551,7 +559,7 @@ export function techSnapshot(state: GameState): TechSnapshot {
       gun: GUNS.filter(
         (g) =>
           partAvailable(g.era, 'gun', r) &&
-          g.caliber <= limits.caliberMax &&
+          g.caliber <= (g.lowVelocity ? limits.howitzerCaliberMax : limits.caliberMax) &&
           g.barrelCalibers <= limits.barrelMax &&
           g.charge <= limits.chargeMax,
       ).map((g) => g.id),
