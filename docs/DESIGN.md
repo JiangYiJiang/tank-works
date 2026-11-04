@@ -1,7 +1,7 @@
 # 坦克厂 · 游戏设计文档
 
-> 版本 `v1.9` · 最后更新 2026-11-04 · 工作区：`F:\tankfactory`
-> 状态：设计局、研发局、制造局都已跑通；贸易局 M3（竞品/压价/贿赂/信誉；阵营系统暂关，待按历史重做）；贷款、关厂报告、多产线、料价、尺度 v1、主动防御、全部 `fn` 已接。
+> 版本 `v2.0` · 最后更新 2026-11-04 · 工作区：`F:\tankfactory`
+> 状态：设计局、研发局、制造局都已跑通；贸易局 M3（竞品/压价/贿赂/信誉；阵营系统暂关，待按历史重做）；贷款、关厂报告、多产线、料价、尺度 v1、主动防御、全部 `fn` 已接；Windows 桌面版已出 NSIS / portable `.exe`。
 > 设计局的车可以交给主循环去卖；科技树已经接进游戏，设计局按科技快照过滤零件，弹道系数随科技变化；
 > 抗破、装填、倒车、俯仰已经进入设计局读数，破甲弹按抗破判定。
 > 仍是单合同、单客户类型；竞品是不做自主设计的轻量 AI；联机按当前要求不做。经济尺度已按 v1 内部标定（§10）。
@@ -1527,7 +1527,7 @@ v1–v6 老存档可以读：产品默认 FT-17，没有产线与订单，研发
 
 **自存档节奏**：每 400 天 + `beforeunload` + `visibilitychange`；接单、换产品、跳事件、开工/买升级也会立即存。
 
-存储抽象成 `SaveStore` 接口（`read/write/remove`），Web 用 `localStorage`，测试用内存 —— **这意味着换成 `.exe` 时只需要换一个实现**。
+存储抽象成 `SaveStore` 接口（`read/write/remove`），Web 用 `localStorage`，测试用内存；桌面版仍用 `localStorage`，但通过 `app://tankworks/` 固定 origin —— 将来换文件存档只需要换一个实现。
 
 ---
 
@@ -1542,7 +1542,7 @@ v1–v6 老存档可以读：产品默认 FT-17，没有产线与订单，研发
 | 研发局 | `/research.html` | `src/tank/research-main.ts` | 科技树、超前/追赶、落后年数 | ✅ 可用 |
 | 制造局 | `/manufacture.html` | `src/tank/manufacture-main.ts` | 产线、仓库、学习曲线 | ✅ 独立试算页（主循环同一模型） |
 
-**主菜单布局**：左栏是 logo 与四个动作（加载 / 新游戏 / 设置 / 退出），右栏 `.menu-art` 是背景图占位，内容待定；退出按钮进入退出页，不调用 `window.close()`。设置键 `tank-works.settings.v1` 目前只存「减少界面动画」。**新游戏**在旧存档存在时仍要两次确认，但确认后只跳到 `/nations.html`，不立刻清档；清档发生在国家页按「开始游戏」时，所以玩家在国家页反悔还能回主菜单读旧档。
+**主菜单布局**：左栏是 logo 与四个动作（加载 / 新游戏 / 设置 / 退出），右栏 `.menu-art` 是背景图占位，内容待定。设置键 `tank-works.settings.v1` 存显示模式、主音量/音乐/音效与「减少界面动画」；桌面版退出直接调 `desktop.quit()`，浏览器版进入退出页（不调用 `window.close()`）。**新游戏**在旧存档存在时仍要两次确认，但确认后只跳到 `/nations.html`，不立刻清档；清档发生在国家页按「开始游戏」时，所以玩家在国家页反悔还能回主菜单读旧档。
 
 **国家选择页**：`/nations.html` 列首批 9 国（美、英、法、德、意、捷克斯洛伐克、瑞典、苏联、日本）。每张卡由 `data/nation-profiles.ts` 的 `flagSvg()` 内联 SVG 国旗、国名/英文名/年份、`tagline`、`history`、代表车 `tanks` 组成；卡是 `button.nation-card[data-id][aria-pressed]`，未选时底部「开始游戏」为灰、禁用，选中后卡片琥珀高亮并显示「已选择」，按钮才亮起。开始游戏时清 `RUN_KEYS`（v7 + legacy 存档、科技快照、设计草稿），导航到 `./game.html?day=0&home=<id>`；主循环从 URL 读 `home`，校验后传给 `createGame(seed, home)`，开工后锁定国籍。窄屏 3→2→1 列，操作条 sticky 在底部。
 
@@ -1584,6 +1584,7 @@ v1–v6 老存档可以读：产品默认 FT-17，没有产线与订单，研发
 | **零运行时依赖** | `dependencies` 是空的，只有 devDeps |
 | **tsx** 跑 CLI 工具 | 校准台、预算台、标定台都是 Node 脚本 |
 | **happy-dom** 跑界面测试 | 在 Node 里挂载真实 DOM，点按钮、读文本 |
+| **Electron 45 + electron-builder 26** | 只作 Windows 桌面壳；不重写页面，主进程负责窗口/协议/模式，渲染层仍是同一份 `dist` |
 
 ### 13.2 分层与依赖方向
 
@@ -1638,22 +1639,52 @@ tank-works/
 │  └─ platform/
 │     ├─ storage.ts          SaveStore 抽象
 │     ├─ save-keys.ts        存档键 / 新游戏清理清单
+│     ├─ settings.ts         显示模式 + 音量 + 减少动画（localStorage）
+│     ├─ desktop.ts          桌面桥接口（window.tankWorksDesktop）
 │     ├─ company.ts          厂名 + 手绘 logo（localStorage）
 │     ├─ design-handoff.ts   设计局 → 主循环的 localStorage 交接
 │     └─ tech-handoff.ts     主循环 → 设计局的科技快照
+├─ desktop/
+│  ├─ main.ts                Electron 主进程：协议、窗口、模式、IPC
+│  ├─ preload.ts             contextBridge 桌面桥
+│  ├─ build.mjs              esbuild → desktop-dist/main.cjs + preload.cjs
+│  ├─ dev.mjs                Vite + Electron 开发启动
+│  └─ pack.mjs               electron-builder 打包
+├─ build/                    icon.ico / icon.png
 ├─ probe/                    校准台、预算台、标定台（fit/ 子目录是标定器，不进产物）
 └─ tools/                    界面冒烟测试 + 文档表格生成
 ```
 
-### 13.4 打包成 .exe 的路径
+### 13.4 Windows 桌面版（Electron）
 
-三条已经铺好的前提：
+已经落地，不再是计划：
 
-1. **`vite.config.ts` 的 `base: './'`** —— 构建产物用相对路径，可以直接 `file://` 打开。这是 Electron 的首要条件。
-2. **`SaveStore` 接口** —— 换 Electron 时把 `createWebStorage()` 换成写文件的实现，上层一行不改。
-3. **零运行时依赖 + 纯 DOM** —— 不需要 Node 原生模块，打包体积可控。
+1. **`vite.config.ts` 的 `base: './'`** —— 构建产物用相对路径，多个 HTML 入口都能从自定义协议下正确加载。
+2. **`SaveStore` 接口** —— 桌面版暂时仍用 localStorage，但加载 origin 换成 `app://tankworks/`，所以存档不会因 `file://` 变成每个文件一个 origin。
+3. **零运行时依赖 + 纯 DOM** —— Electron 只作壳，`electron`/`electron-builder` 都是 devDependencies，`dist` 不需要 Node 原生模块。
 
-计划路线：`dist/` → Electron 壳（`electron-builder` 打 `.exe`）→ 文件系统存档 → 可执行文件图标。
+**加载路径**：主进程注册 `app://tankworks/`（standard + secure），`protocol.handle` 从 `dist` 读文件并补 MIME；`index.html`、`game.html` 等相对跳转不用改。**不用 `file://`**：自定义协议保证 localStorage origin 固定，并且能拦住目录穿越。
+
+**窗口与设置**：
+
+- `src/platform/settings.ts`：`GameSettings { displayMode, reduceMotion, masterVolume, musicVolume, sfxVolume }`，键 `tank-works.settings.v1`；旧版只有 `reduceMotion` 也能读。
+- `desktop/main.ts`：`window-state.json` 存 `{ displayMode, bounds }` 到 `app.getPath('userData')`；启动读取时去掉 UTF-8 BOM。
+- 三种模式：`window` 用原生边框、1280×800、可缩放；`borderless` 用 `frame:false` + 主屏 bounds；`fullscreen` 用 `frame:false`，`ready-to-show` 后 `setFullScreen(true)`（构造参数里的 `fullscreen:true` 实测不生效）。
+- 切换模式时重建 BrowserWindow：Electron 不能在运行时改 `frame`；设置只在主菜单，重建可接受。重建用同一 URL，存档和设置都在 localStorage，不丢。
+- `desktop/preload.ts` 只暴露 `getDisplayMode / setDisplayMode / quit`；不把 `ipcRenderer` 给页面。
+- 音量目前只持久化，不假装有声音；音频资源接入后再把所有声音乘 `masterVolume × (music|sfx)Volume`。
+
+**打包**：
+
+```bash
+npm run desktop:dev    # Vite + Electron
+npm run desktop:build  # esbuild 打 main.cjs / preload.cjs
+npm run desktop:pack   # 构建 dist + 桌面壳 + electron-builder
+```
+
+产物在 `release/`：NSIS 安装包 `Tank Works-0.2.0-x64.exe` 与免安装 `Tank Works-0.2.0-portable.exe`。`electron-builder.yml` 只收 `dist`、`desktop-dist`、`package.json`，asar 打包；图标 `build/icon.ico`。
+
+**已知限制**：切换显示模式会重开窗口；窗口位置/大小只记窗口模式；构建未做代码签名，Windows SmartScreen 会提示未知发布者；暂不支持自动更新。若终端里有 `ELECTRON_RUN_AS_NODE=1`，Electron 会当 Node 跑并直接退出；启动前删掉该变量，`desktop/dev.mjs` 已处理。
 
 ### 13.5 联机的 technical 前提（最后做）
 
@@ -1834,7 +1865,10 @@ npm install           # 首次
 npm run dev           # 开发服务器 127.0.0.1:5273，六个页面
 npm run build         # 构建到 dist/（六个入口，相对路径）
 npm run preview       # 预览打包结果
-npm run check         # 全部检查：类型 + 校准 + 节奏 + 13 个检查台（543 项断言）
+npm run desktop:dev   # Vite + Electron 开发窗口
+npm run desktop:build # esbuild 打桌面壳（desktop-dist/）
+npm run desktop:pack  # 构建 + 桌面壳 + electron-builder 出 Windows 包（release/）
+npm run check         # 全部检查：类型 + 校准 + 节奏 + 13 个检查台（554 项断言）
 
 npm run design        # 19 辆历史车校准表
 npm run ballistics    # 弹道两轴表
@@ -1848,7 +1882,7 @@ npm run economy       # 经济闭环验收（竞品、压价、贿赂、审计�
 
 npm run smoke:tank    # 设计局界面 37 项
 npm run smoke:game    # 游戏壳界面 104 项
-npm run menu          # 主菜单界面 36 项
+npm run menu          # 主菜单界面 47 项
 npm run nation        # 国家选择页 34 项
 npm run world         # 世界编制 16 项
 npm run dashboard     # 游戏主界面 46 项

@@ -3,7 +3,9 @@
   "private": true,
   "version": "0.2.0",
   "type": "module",
+  "main": "desktop-dist/main.cjs",
   "description": "坦克厂 —— 1915…1991 从设计局开始的一家小厂",
+  "author": "JiangYiJiang",
   "engines": {
     "node": ">=20"
   },
@@ -13,6 +15,9 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit && tsx probe/design-check.ts && tsx probe/ballistics-check.ts && tsx probe/tech-budget.ts && tsx tools/clock-bench.ts && tsx tools/research-bench.ts && tsx tools/design-metrics-bench.ts && tsx tools/economy-scale.ts && tsx tools/economy-bench.ts && tsx tools/menu-smoke.ts && tsx tools/nation-smoke.ts && tsx tools/world-smoke.ts && tsx tools/dashboard-smoke.ts && tsx tools/tank-smoke.ts && tsx tools/game-smoke.ts && tsx tools/research-smoke.ts && tsx tools/manufacture-smoke.ts",
+    "desktop:build": "node desktop/build.mjs",
+    "desktop:dev": "node desktop/dev.mjs",
+    "desktop:pack": "npm run build && npm run desktop:build && node desktop/pack.mjs",
     "design": "tsx probe/design-check.ts",
     "ballistics": "tsx probe/ballistics-check.ts",
     "tech": "tsx probe/tech-budget.ts",
@@ -36,6 +41,9 @@
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
+    "electron": "^45.2.2",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
     "happy-dom": "^20.0.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",

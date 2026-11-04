@@ -4,7 +4,7 @@
 
 文字模拟经营。核心不是点科技树，是**在物理约束下做工程取舍**：装甲厚一点就重一点，炮大一点炮塔就大一点，发动机强一点车体就长一点——每一项性能都要用重量、工时、钱去换。
 
-> **当前状态**：外交局、设计局、研发局、制造局、贸易局都已跑通；贷款/关厂报告/多产线/料价/尺度 v1 已接。
+> **当前状态**：外交局、设计局、研发局、制造局、贸易局都已跑通；贷款/关厂报告/多产线/料价/尺度 v1 已接；Windows 桌面版已能出 NSIS / portable `.exe`。
 > **新游戏先选国家**：主菜单「新游戏」两次确认后进入 9 国选择页，国旗、国名、坦克发展历程都在这一页。
 > **阵营系统暂关**：旧的 1939–45 同盟/轴心、1947–91 东西方分段已移除，所有国家都能向所有客户供货；后续按法国 1940、美国 1917 这类历史事件重新设计。
 > **设计局的车现在在游戏内设计**：产品面板点「设计本厂车」，改完直接应用到这一局；独立 `/tank.html` 只作预览。
@@ -38,7 +38,7 @@
 | `/research.html` | 研发局：1912–1991 年时间轴，7 条泳道，一条「今天」的竖线 | ✅ 读图工具，不存档 |
 | `/manufacture.html` | 制造局：产线、仓库、学习曲线、成本摊薄 | ✅ 独立试算页（主循环用同一模型） |
 
-主菜单四个按钮：**加载游戏**读本地存档；**新游戏**有存档时两次确认，然后进入 `/nations.html` 选国家；**设置**可减少界面动画、清除本局存档；**退出游戏**进入退出页（浏览器不能可靠关闭当前标签页）。右侧是背景图占位，后续再定内容。
+主菜单四个按钮：**加载游戏**读本地存档；**新游戏**有存档时两次确认，然后进入 `/nations.html` 选国家；**设置**可切显示模式、调主音量/音乐/音效、减少界面动画、清除本局存档；**退出游戏**在桌面版直接关游戏，浏览器版进入退出页（浏览器不能可靠关闭当前标签页）。右侧是背景图占位，后续再定内容。
 
 选国家页只列首批 9 国：美国、英国、法国、德国、意大利、捷克斯洛伐克、瑞典、苏联、日本。点国旗或卡片高亮，底部「开始游戏」才亮起；**开始游戏时才清除旧存档**，所以在国家页反悔还能返回主菜单读旧档。
 
@@ -62,9 +62,32 @@
 ```bash
 npm install
 npm run dev        # http://127.0.0.1:5273/  （根路径是主菜单）
-npm run check      # 类型检查 + 校准 + 弹道 + 科技节奏 + 时钟 + 研发 + 指标 + 尺度 + 经济 + 13 个检查台 = 543 项断言
+npm run check      # 类型检查 + 校准 + 弹道 + 科技节奏 + 时钟 + 研发 + 指标 + 尺度 + 经济 + 13 个检查台 = 554 项断言
 npm run build      # 打包到 dist/（相对路径，可直接 file:// 打开）
 ```
+
+## 桌面版（Windows .exe）
+
+同一份 `dist` 现在也能装进 Electron 壳，像普通 Windows 游戏一样双击启动：
+
+```bash
+npm run desktop:dev    # Vite + Electron 开发窗口
+npm run desktop:build  # 只打桌面壳（desktop-dist/）
+npm run desktop:pack   # 构建 + 桌面壳 + electron-builder，产物在 release/
+```
+
+产物：
+
+- `release/Tank Works-0.2.0-x64.exe` —— NSIS 安装包（可选安装目录、桌面快捷方式）
+- `release/Tank Works-0.2.0-portable.exe` —— 免安装，双击即玩
+
+主菜单「设置」里可以切 **窗口 / 窗口化全屏幕 / 全屏**，并设置主音量、音乐、音效。显示模式切换会重开窗口（Electron 不能运行时改窗口边框），存档和设置不会丢。音量目前只保存数值，**音频资源还没接入**。首次 `npm install` 如果 Electron 二进制下载失败，设置 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` 后重跑 `node node_modules/electron/install.js`；打包下载失败时设 `ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/`。
+
+桌面版没有代码签名，Windows SmartScreen 会提示「未知发布者」；选择「更多信息 → 仍要运行」即可。
+
+如果从已经设置 `ELECTRON_RUN_AS_NODE=1` 的终端启动（本机开发环境就有），Electron 会退化成 Node 并直接退出；先 `Remove-Item Env:ELECTRON_RUN_AS_NODE` 再启动。双击 exe 不受影响，`npm run desktop:dev` 也已在子进程里删掉这个变量。
+
+![桌面版设置](docs/images/desktop-settings.png)
 
 ## 一局怎么玩
 
@@ -117,12 +140,14 @@ src/tank/
   ui/        设计局 / 研发局 / 制造局界面
   game/      主界面 + 五局工作页 + 建厂登记 + 走时/渲染节流
   nation-main.ts  国家选择页（卡片、选中态、开始新局）
-src/platform/  SaveStore、存档键、公司厂牌、设计/科技交接（localStorage）
-probe/        校准台、预算台、标定器（不进产物）
-tools/        界面冒烟测试 + 文档表格生成
+src/platform/  SaveStore、存档键、设置、桌面桥、公司厂牌、设计/科技交接
+desktop/       Electron 主进程 / preload / esbuild / 打包脚本
+build/         应用图标（icon.ico / icon.png）
+probe/         校准台、预算台、标定器（不进产物）
+tools/         界面冒烟测试 + 文档表格生成
 ```
 
-分层规矩：`model/` 和 `sim/` 不 import 任何 DOM 的东西，所以同一份规则能在浏览器里跑，也能在 Node 里被检查台和标定器复用。
+分层规矩：`model/` 和 `sim/` 不 import 任何 DOM 的东西，所以同一份规则能在浏览器里跑，也能在 Node 里被检查台和标定器复用。`desktop/` 只碰窗口、协议和打包，不碰模拟规则。
 
 ## 版本管理
 
@@ -152,3 +177,5 @@ GitHub 不接受账号密码：push 的 Password 处要填 **Personal Access Tok
 - **国家编制是占位估算**：9 国共 19 辆真实 fixture + 若干估算型号；数量按服役年数爬坡，不是真实产量，也没有军援、战损、退役档案。
 - **事件记录文案未考证**：开局有一条时代事件，之后接 29 条快讯；右侧只显示最近 60 条日志，历史大事件用琥珀色，普通事件白色。
 - **厂牌只存在本机**：厂名和手绘 logo 存 `localStorage`（`tank-works.company.v1`），logo 是 PNG data URL；换浏览器、清缓存或换设备不会跟随。
+- **桌面版切换显示模式会重开窗口**：Electron 不能运行时改窗口边框；窗口位置/大小只在窗口模式记忆。构建未签名，SmartScreen 会提示未知发布者。
+- **音量设置只是持久化**：主音量/音乐/音效滑条已存进 `tank-works.settings.v1`，但还没有音频资源与播放逻辑。

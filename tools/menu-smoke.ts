@@ -3,6 +3,8 @@
  */
 
 import { Window } from 'happy-dom'
+import type { DesktopBridge } from '../src/platform/desktop'
+import type { DisplayMode } from '../src/platform/settings'
 
 const win = new Window({ url: 'http://localhost/' })
 const doc = win.document as unknown as Document
@@ -60,6 +62,8 @@ check('存档条说明没有存档', txt(emptyRoot, '.menu-save-line').includes(
 click(emptyRoot, '.menu-settings')
 check('设置覆盖层打开', (q(emptyRoot, '.menu-settings-overlay') as HTMLElement).hidden === false)
 check('设置里有减少动画', txt(emptyRoot, '.settings-panel').includes('减少界面动画'))
+check('浏览器里显示模式按钮禁用', all(emptyRoot, '.mode-option').every((b) => (b as HTMLButtonElement).disabled))
+check('设置里有三个音量滑条', all(emptyRoot, '.volume-slider').length === 3)
 const motion = q(emptyRoot, '.switch-input') as HTMLInputElement
 motion.checked = true
 motion.dispatchEvent(new win.Event('change') as unknown as Event)
@@ -125,6 +129,45 @@ check('第二次点清除清掉存档', store2.read(SAVE_KEY) === null)
 check('清除后加载按钮禁用', (q(root2, '.menu-load') as HTMLButtonElement).disabled === true)
 check('清除后设置覆盖层关闭', (q(root2, '.menu-settings-overlay') as HTMLElement).hidden === true)
 check('清除后提示重新开始', txt(root2, '.menu-hint').includes('可以从 1915 年重新开始'))
+
+// ── 4. 桌面桥：显示模式 / 音量 / 退出 ─────────────────────
+const desktopStore = createMemoryStorage()
+const modeCalls: DisplayMode[] = []
+let quitCalled: boolean = false
+const fakeDesktop: DesktopBridge = {
+  isDesktop: true,
+  getDisplayMode: async (): Promise<DisplayMode> => 'window',
+  setDisplayMode: async (mode: DisplayMode): Promise<DisplayMode> => {
+    modeCalls.push(mode)
+    return mode
+  },
+  quit: (): void => {
+    quitCalled = true
+  },
+}
+const dockRoot = doc.createElement('div') as unknown as HTMLElement
+mountMenu(dockRoot, { storage: desktopStore, navigate: (url) => (nav = url), desktop: fakeDesktop })
+await new Promise((resolve) => setTimeout(resolve, 0))
+
+check('桌面版显示模式按钮可用', all(dockRoot, '.mode-option').every((b) => !(b as HTMLButtonElement).disabled))
+check('桌面版默认窗口模式高亮', (q(dockRoot, '.mode-option[data-mode="window"]') as HTMLElement).classList.contains('active'))
+click(dockRoot, '.mode-option[data-mode="fullscreen"]')
+await new Promise((resolve) => setTimeout(resolve, 0))
+const desktopSettings = JSON.parse(desktopStore.read('tank-works.settings.v1') ?? '{}') as { displayMode?: string; masterVolume?: number }
+check('选择全屏后写入设置', desktopSettings.displayMode === 'fullscreen', String(desktopSettings.displayMode))
+check('选择全屏调用桌面桥', modeCalls.includes('fullscreen'), modeCalls.join(','))
+check('选择全屏后按钮高亮', (q(dockRoot, '.mode-option[data-mode="fullscreen"]') as HTMLElement).classList.contains('active'))
+
+const master = all(dockRoot, '.volume-slider')[0] as HTMLInputElement
+master.value = '35'
+master.dispatchEvent(new win.Event('input') as unknown as Event)
+const volumeSettings = JSON.parse(desktopStore.read('tank-works.settings.v1') ?? '{}') as { masterVolume?: number }
+check('拖动主音量写入设置', volumeSettings.masterVolume === 35, String(volumeSettings.masterVolume))
+check('主音量数值同步显示', txt(dockRoot, '.volume-value') === '35%')
+
+click(dockRoot, '.menu-exit')
+check('桌面版退出调用桌面桥', Boolean(quitCalled))
+check('桌面版退出不打开网页退出页', (q(dockRoot, '.menu-exit-overlay') as HTMLElement).hidden === true)
 
 console.log(`\n${pass} 通过 / ${fail} 失败\n`)
 if (fail > 0) process.exitCode = 1

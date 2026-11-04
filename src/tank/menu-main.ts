@@ -9,14 +9,15 @@ import { ERAS, formatDate } from './sim/calendar'
 import { decodeSave } from './sim/save'
 import { ALL_SAVE_KEYS, RUN_KEYS } from '../platform/save-keys'
 import { createWebStorage, type SaveStore } from '../platform/storage'
+import { desktopBridge, type DesktopBridge } from '../platform/desktop'
+import {
+  readSettings,
+  writeSettings,
+  type DisplayMode,
+  type GameSettings,
+} from '../platform/settings'
 import { nationName } from './data/nations'
 import type { GameState } from './sim/state'
-
-const SETTINGS_KEY = 'tank-works.settings.v1'
-
-interface MenuSettings {
-  reduceMotion: boolean
-}
 
 interface MenuStorage extends Pick<SaveStore, 'read' | 'write' | 'remove'> {}
 
@@ -24,6 +25,8 @@ export interface MenuOptions {
   storage?: MenuStorage
   /** 测试里替换掉 location.assign */
   navigate?: (url: string) => void
+  /** 测试里注入假的桌面桥；不传则读取 preload 暴露的 window.tankWorksDesktop */
+  desktop?: DesktopBridge | null
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -58,18 +61,7 @@ function readSave(storage: MenuStorage): GameState | null {
   return null
 }
 
-function readSettings(storage: MenuStorage): MenuSettings {
-  const raw = storage.read(SETTINGS_KEY)
-  if (!raw) return { reduceMotion: false }
-  try {
-    const parsed = JSON.parse(raw) as Partial<MenuSettings>
-    return { reduceMotion: parsed.reduceMotion === true }
-  } catch {
-    return { reduceMotion: false }
-  }
-}
-
-function applySettings(settings: MenuSettings): void {
+function applySettings(settings: GameSettings): void {
   document.documentElement.classList.toggle('reduce-motion', settings.reduceMotion)
 }
 
@@ -85,8 +77,10 @@ function settingRow(title: string, desc: string, control: HTMLElement): HTMLElem
 export function mountMenu(root: HTMLElement, opts: MenuOptions = {}): void {
   const storage = opts.storage ?? createWebStorage()
   const navigate = opts.navigate ?? ((url: string) => window.location.assign(url))
+  const desktop = opts.desktop !== undefined ? opts.desktop : desktopBridge()
   const settings = readSettings(storage)
   applySettings(settings)
+  const persist = (): void => writeSettings(storage, settings)
   let save = readSave(storage)
   let armed = false
   let armTimer = 0
@@ -158,6 +152,94 @@ export function mountMenu(root: HTMLElement, opts: MenuOptions = {}): void {
     el('span', { class: 'switch-track', 'aria-hidden': 'true' }),
   )
 
+  const modeButtons = new Map<DisplayMode, HTMLButtonElement>()
+  const modeNote = el('p', { class: 'setting-note mode-note' })
+  const modeOptions = el('div', {
+    class: 'mode-options',
+    role: 'group',
+    'aria-label': '显示模式',
+  })
+
+  function updateModeUI(): void {
+    for (const [mode, btn] of modeButtons) {
+      const active = settings.displayMode === mode
+      btn.classList.toggle('active', active)
+      btn.setAttribute('aria-pressed', String(active))
+    }
+    modeNote.textContent = desktop
+      ? '切换显示模式会重开窗口，存档和设置不会丢。'
+      : '浏览器里使用当前窗口；桌面版可切换全屏 / 窗口化全屏 / 窗口。'
+  }
+
+  const modeItems: Array<[DisplayMode, string, string]> = [
+    ['fullscreen', '全屏', '无边框，铺满整块屏幕'],
+    ['borderless', '窗口化全屏幕', '无边框，铺满桌面但保留窗口'],
+    ['window', '窗口', '带系统边框，可拖动缩放'],
+  ]
+  for (const [mode, title, desc] of modeItems) {
+    const btn = el(
+      'button',
+      { class: 'mode-option', type: 'button', 'data-mode': mode, 'aria-pressed': 'false' },
+      el('strong', { text: title }),
+      el('span', { text: desc }),
+    ) as HTMLButtonElement
+    btn.disabled = !desktop
+    btn.addEventListener('click', () => {
+      if (!desktop || settings.displayMode === mode) return
+      settings.displayMode = mode
+      updateModeUI()
+      persist()
+      modeNote.textContent = '正在切换窗口…'
+      void desktop.setDisplayMode(mode).catch(() => {
+        modeNote.textContent = '切换失败，已保持当前窗口。'
+      })
+    })
+    modeButtons.set(mode, btn)
+    modeOptions.append(btn)
+  }
+  updateModeUI()
+
+  if (desktop) {
+    void desktop
+      .getDisplayMode()
+      .then((mode) => {
+        settings.displayMode = mode
+        updateModeUI()
+        persist()
+      })
+      .catch(() => {
+        /* 桥不可用时保持本地设置 */
+      })
+  }
+
+  function volumeRow(
+    key: 'masterVolume' | 'musicVolume' | 'sfxVolume',
+    title: string,
+    desc: string,
+  ): HTMLElement {
+    const output = el('output', { class: 'volume-value' })
+    const input = el('input', {
+      class: 'volume-slider',
+      type: 'range',
+      min: '0',
+      max: '100',
+      step: '1',
+      'aria-label': title,
+    }) as HTMLInputElement
+    input.value = String(settings[key])
+    output.textContent = `${input.value}%`
+    input.addEventListener('input', () => {
+      settings[key] = Number(input.value)
+      output.textContent = `${input.value}%`
+      persist()
+    })
+    return settingRow(
+      title,
+      desc,
+      el('div', { class: 'volume-control' }, input, output),
+    )
+  }
+
   const settingsOverlay = el(
     'div',
     { class: 'menu-overlay menu-settings-overlay' },
@@ -178,6 +260,22 @@ export function mountMenu(root: HTMLElement, opts: MenuOptions = {}): void {
       el(
         'div',
         { class: 'settings-body' },
+        el(
+          'div',
+          { class: 'setting-block' },
+          el(
+            'div',
+            { class: 'setting-copy' },
+            el('strong', { text: '显示模式' }),
+            el('p', { text: '决定这一局是在全屏、无边框全屏，还是普通窗口里运行。' }),
+          ),
+          modeOptions,
+          modeNote,
+        ),
+        volumeRow('masterVolume', '主音量', '总音量，音乐和音效都会乘在它上面。'),
+        volumeRow('musicVolume', '音乐', '背景音乐音量；音频资源接入后生效。'),
+        volumeRow('sfxVolume', '音效', '按钮、开火、交付等音效音量；音频资源接入后生效。'),
+        el('p', { class: 'setting-note', text: '音量设置会保存在本机；当前版本还没有接入音频文件。' }),
         settingRow('减少界面动画', '关闭按钮、面板与覆盖层的过渡效果。', motionSwitch),
         settingRow('本局存档', '存档只保存在这台电脑的 localStorage 里。', clearBtn),
         settingsSaveDetail,
@@ -312,7 +410,7 @@ export function mountMenu(root: HTMLElement, opts: MenuOptions = {}): void {
 
   motionInput.addEventListener('change', () => {
     settings.reduceMotion = motionInput.checked
-    storage.write(SETTINGS_KEY, JSON.stringify(settings))
+    persist()
     applySettings(settings)
   })
 
@@ -340,7 +438,13 @@ export function mountMenu(root: HTMLElement, opts: MenuOptions = {}): void {
     newBtn.focus()
   })
 
-  exitBtn.addEventListener('click', openExit)
+  exitBtn.addEventListener('click', () => {
+    if (desktop) {
+      desktop.quit()
+      return
+    }
+    openExit()
+  })
   exitBackBtn.addEventListener('click', closeExit)
   exitOverlay.addEventListener('click', (event) => {
     if (event.target === exitOverlay) closeExit()

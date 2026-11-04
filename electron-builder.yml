@@ -1,0 +1,38 @@
+appId: com.tankworks.game
+productName: Tank Works
+copyright: Copyright © 2026 JiangYiJiang
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - desktop-dist/**/*
+  - package.json
+
+asar: true
+compression: maximum
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: build/icon.ico
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Tank Works
+  deleteAppDataOnUninstall: false
+
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}

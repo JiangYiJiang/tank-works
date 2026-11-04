@@ -18,5 +18,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "tools", "probe", "vite.config.ts"]
+  "include": ["src", "tools", "probe", "desktop", "vite.config.ts"]
 }

@@ -15,6 +15,7 @@
 | 主菜单 | ✅ 完成 | 加载游戏、新游戏、设置、退出；左侧 logo，右侧背景预留 |
 | 国家选择 | ✅ 完成 | 新游戏先过 9 国卡片页；国旗、国名、发展历程；选中后才开始 |
 | 游戏主界面 | ✅ 首版 | 五局入口（默认外交局）、9 国编制、地图占位、事件记录、首次建厂登记 |
+| Windows 桌面版 | ✅ 首版 | Electron 壳；窗口/窗口化全屏/全屏、音量设置；NSIS + portable exe |
 | 设计局 · 界面 | ✅ 完成 | 四维、19 项物理量、耦合与代价、弹道三轴、成本、缺陷 |
 | 时钟与事件 | ✅ 完成 | 28,124 天、8 时代、29 条快讯；存档有上限（1,116 B → 3,979 B） |
 | 研发局 · 数据与节奏 | ✅ 完成 | 159 条技术 / 65 梯子 / 7 泳道；槽月预算 + 九策略 |
@@ -25,9 +26,9 @@
 | 贸易局 | ✅ M3 | 招标、竞品（轻量 AI）、压价、贿赂、信誉、审计；阵营/出口限制暂关，待按历史重做；不做自主设计竞品 |
 | 经济闭环 | ✅ M3 | 接单 → 排产 → 交付 → 回款 → 下一单；贷款/关厂报告/多产线/料价波动/尺度 v1；单合同 |
 
-**一句话：主循环能转、科技树能推、设计能卖、标能抢、市场全开、钱能借、线能加、账能算；阵营系统待重做，联机不做。**
+**一句话：主循环能转、科技树能推、设计能卖、标能抢、市场全开、钱能借、线能加、账能算；能打成 Windows exe；阵营系统待重做，联机不做。**
 
-检查台现状：`npm run check` = 类型检查 + 13 个检查台，**543 项断言全绿**（见 §1.15）。
+检查台现状：`npm run check` = 类型检查 + 13 个检查台，**554 项断言全绿**（见 §1.16）。
 
 > **阵营系统暂关**：旧的 1939–45 同盟/轴心、1947–91 东西方分段已从代码移除，所有进入市场的国家都能供货，只排除本国。后续按法国 1940、美国 1917 这类历史事件重新设计。
 
@@ -164,11 +165,11 @@
 - 根路径 `/` 是入口页，深色蓝图风；左栏 logo + 四个按钮，右栏预留背景图位置
 - **加载游戏**：有存档时可用，摘要显示日期 / 时代 / 国家 / 现金 / 信誉 / 科技数；无存档时禁用
 - **新游戏**：有存档时两次确认，然后跳到 `/nations.html` 选国家；确认时不立刻清档，点「开始游戏」才清 v7 与 legacy 存档、科技快照、设计交接，带 `?day=0&home=<id>` 开新局；无存档时一次进入
-- **设置**：减少界面动画（`tank-works.settings.v1`）、查看并两次确认清除本局存档
-- **退出游戏**：进入退出页；浏览器不能可靠关闭标签页，所以提供「返回主菜单」
+- **设置**：显示模式（全屏 / 窗口化全屏幕 / 窗口，桌面版可用）、主音量 / 音乐 / 音效滑条、减少界面动画（`tank-works.settings.v1`）、查看并两次确认清除本局存档
+- **退出游戏**：桌面版直接调用 `desktop.quit()`；浏览器不能可靠关闭标签页，所以回退到退出页
 - 响应式：窄屏单列、按钮全宽；右侧背景区在窄屏隐藏
 
-**验证**：`npm run menu` → **36 项断言**（四按钮、logo、存档摘要、设置开关/清档、退出页、两次确认）
+**验证**：`npm run menu` → **47 项断言**（四按钮、logo、存档摘要、设置模式/音量/清档、桌面桥退出、两次确认）
 
 ### 1.13 国家选择 ✅
 
@@ -193,7 +194,19 @@
 
 **验证**：`npm run world` → **16 项**；`npm run dashboard` → **46 项**（五卡、默认外交、9 国、地图、事件、展开、页面切换、建厂登记）；`npm run smoke:game` → 104 项
 
-### 1.15 检查台
+### 1.15 Windows 桌面版 ✅
+
+- **Electron 壳**：自定义协议 `app://tankworks/` 加载 `dist`，不用 `file://`，保证多页相对路径与 `localStorage` origin 稳定；单实例锁，外链/新窗口拦截
+- **窗口模式**：主菜单设置三选一——窗口（原生边框、可缩放）、窗口化全屏幕（无边框、铺满桌面、保留任务栏）、全屏（无边框、`setFullScreen(true)`）；切换模式会重建窗口，存档与设置不丢
+- **窗口状态**：`window-state.json` 存在 Electron `userData`，记录模式与窗口 bounds；启动按上次模式开窗，读取时容忍 UTF-8 BOM
+- **设置**：`tank-works.settings.v1` 统一存 `displayMode / masterVolume / musicVolume / sfxVolume / reduceMotion`，兼容旧版只有 `reduceMotion` 的存档；音量目前只持久化，音频资源尚未接入
+- **桌面桥**：`desktop/preload.ts` 通过 contextBridge 暴露 `window.tankWorksDesktop`（`getDisplayMode / setDisplayMode / quit`），不透传 `ipcRenderer`；浏览器里模式按钮禁用
+- **打包**：`npm run desktop:pack` → electron-builder 生成 NSIS 安装包 + portable exe；图标 `build/icon.ico`，产品名 `Tank Works`
+- **验证**：`npm run check` 554 项；`npm run build` exit 0；`release/win-unpacked/Tank Works.exe` 冒烟启动，window / borderless / fullscreen 三种模式均通过（fullscreen `isFullScreen=true`，borderless 1920×1035，window 1280×800 可缩放）
+
+**产物**：`release/Tank Works-0.2.0-x64.exe`（安装包）、`release/Tank Works-0.2.0-portable.exe`（免安装）。
+
+### 1.16 检查台
 
 `npm run check` 一条命令跑完：
 
@@ -210,13 +223,13 @@
 | 经济 | `npm run economy` | 96 | ✅ |
 | 设计局界面 | `npm run smoke:tank` | 37 | ✅ |
 | 游戏壳界面 | `npm run smoke:game` | 104 | ✅ |
-| 主菜单界面 | `npm run menu` | 36 | ✅ |
+| 主菜单界面 | `npm run menu` | 47 | ✅ |
 | 国家选择界面 | `npm run nation` | 34 | ✅ |
 | 世界编制 | `npm run world` | 16 | ✅ |
 | 游戏主界面 | `npm run dashboard` | 46 | ✅ |
 | 研发局界面 | `npm run smoke:research` | 27 | ✅ |
 | 制造局界面 | `npm run smoke:mf` | 21 | ✅ |
-| **合计** | | **543 项断言** | |
+| **合计** | | **554 项断言** | |
 
 ---
 
@@ -258,7 +271,7 @@
 | 16 | 产线升级（降工时 / 工时费） | ✅ 加线 / 扩编 / 加班都做了；降工时靠学习曲线 |
 | 17 | 战争中的订单潮 | 用威胁水位驱动订单量与验收放宽 |
 | 18 | 训练 / 熟练度状态 | 换型掉 35% 是拍脑袋的，应该由「工人经验」推 |
-| 19 | 音效与动效 | 纯文字阶段暂不需要 |
+| 19 | 音效与动效 | 设置里已有主音量/音乐/音效滑条并持久化，音频资源与播放逻辑后续接 |
 | 20 | 材料价格随行就市 | ✅ 年份漂移 + 周期 + 确定性噪声；接单锁价 |
 | 21 | 抗破（CE）接线 | ✅ `TankPhysical` 带出 `armorFrontCe / armorTurretCe / armorSideCe`；设计局显示，破甲弹按 CE 判定 |
 | 22 | 火力加装填时间 / 机动加倒车速度 | ✅ 装填、倒车、俯仰、主动防御都进了模型与读数 |
@@ -267,7 +280,7 @@
 
 | # | 功能 | 说明 |
 |---|---|---|
-| 23 | Electron 打包 `.exe` | DESIGN §13.4 的三条前提已经铺好 |
+| 23 | Electron 打包 `.exe` | ✅ Electron 45 壳 + 自定义协议 + 三显示模式；NSIS/portable 已出包（见 §1.15） |
 | 24 | 文件系统存档 | 换一个 `SaveStore` 实现 |
 | 25 | 局域网联机 | lockstep：动作日志 + 确定性重放（DESIGN §13.5） |
 | 26 | 21 世纪 DLC | 终局清单已备好 11 条 |
@@ -367,8 +380,11 @@
 # 日常
 npm run dev            # 六个页面，127.0.0.1:5273
 npm run build          # 类型检查 + 打包到 dist/（相对路径，可 file:// 打开）
+npm run desktop:dev    # Vite + Electron 开发窗口
+npm run desktop:build  # esbuild 打桌面壳
+npm run desktop:pack   # 构建 + 桌面壳 + electron-builder，产物在 release/
 npm run preview        # 本地预览打包结果
-npm run check          # 543 项断言的完整回归，提交前跑这个
+npm run check          # 554 项断言的完整回归，提交前跑这个
 
 # 单个检查台
 npm run design         # 19 辆历史车校准
@@ -379,7 +395,7 @@ npm run clock          # 时钟/存档验收
 npm run research       # 研发验收（开工、槽位、闸门、迁移）
 npm run metrics        # 设计局指标验收（抗破、装填、倒车、俯仰）
 npm run scale          # 经济尺度（8 个时代的毛利 / 工期 / 首单技术）
-npm run menu           # 主菜单（四按钮、存档摘要、设置、退出）
+npm run menu           # 主菜单（四按钮、存档摘要、显示模式/音量、退出）
 npm run nation         # 国家选择页（9 国、选中态、开始新局）
 npm run world          # 世界编制（9 国、年份过滤、数量爬坡）
 npm run dashboard      # 游戏主界面（五卡、9 国、地图、事件、建厂登记）
@@ -447,7 +463,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **M1 简化（已替换）**：空档期不烧维持费；换型即时免费；多线/贷款/信誉/竞品/贿赂/结算总表后来已接。
 
-**验证**：`npm run check` → 543 项断言；`npm run economy` → 96 项；`npm run smoke:game` → 104 项。
+**验证**：`npm run check` → 554 项断言；`npm run economy` → 96 项；`npm run smoke:game` → 104 项。
 
 ---
 
@@ -462,7 +478,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 数据修正：`ww2_simple` 年代 1944 → 1941（否则 T-34/76 会被判成超前 3 年，见 `data/parts.ts`）
 - 年代闸门：`designYear ≤ 当前年份 + 2`，同时在 `acceptOffer` 里兜底，防止绕过 UI
 
-**验证**：`npm run check` → 543 项；`smoke:tank` 37；`smoke:game` 104；`economy` 96。
+**验证**：`npm run check` → 554 项；`smoke:tank` 37；`smoke:game` 104；`economy` 96。
 
 ---
 
@@ -502,7 +518,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **刻意不进评分**：装填 / 倒车 / 俯仰只进读数，避免 19 辆历史车分数漂移（决策 31）。
 
-**验证**：`npm run metrics` → 13 项；`smoke:tank` 37；`check` 543。
+**验证**：`npm run metrics` → 13 项；`smoke:tank` 37；`check` 554。
 
 ---
 
@@ -600,7 +616,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **决定：暂不做多合同**（选 B）。当前一局的核心决策已经够多（国家/产品/研发/接单方式/产能），多合同会先把 UI 与存档复杂度翻倍，而收益主要是后期。等核心循环稳定后再评估 A。
 
-**验证**：`npm run research` 49；`npm run metrics` 13；`smoke:tank` 37；`check` 543。
+**验证**：`npm run research` 49；`npm run metrics` 13；`smoke:tank` 37；`check` 554。
 
 ---
 
@@ -616,7 +632,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `src/tank/menu.css`：深色蓝图风、响应式；`docs/images/menu.png`
 - `src/platform/save-keys.ts`：存档键集中，壳与菜单共用
 
-**验证**：`npm run menu` 36；`check` 543。
+**验证**：`npm run menu` 47；`check` 554。
 
 ---
 
@@ -630,7 +646,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 点应用后 `postMessage` 回主循环；主循环用 `buildTank` + `designCheck` 再校验，通过后替换 `state.design`
 - 关闭覆盖层清草稿；科技快照仍由主循环发布，零件表按当前科技过滤
 
-**验证**：`smoke:game` 104；`check` 543。
+**验证**：`smoke:game` 104；`check` 554。
 
 ---
 
@@ -647,7 +663,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `vite.config.ts` 增加 nations 入口；`package.json` 增加 `npm run nation`
 - `docs/images/nation-select.png`
 
-**验证**：`npm run nation` 34；`smoke:game` 104；`npm run menu` 36；`check` 543。
+**验证**：`npm run nation` 34；`smoke:game` 104；`npm run menu` 47；`check` 554。
 
 ---
 
@@ -660,7 +676,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `tools/economy-bench.ts`：3b 段改为自由市场，11 项断言（1941 客户池 9 国、瑞典可同时卖德苏、1918 无苏联、1949 有中国等）
 - README / DESIGN / STATUS：统一标注「阵营暂关」，保留 `home` 作为厂旗与身份字段
 
-**验证**：`npm run economy` 96；`check` 543。
+**验证**：`npm run economy` 96；`check` 554。
 
 ---
 
@@ -679,7 +695,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `docs/images/dashboard.png`
 - `docs/images/founder.png`
 
-**验证**：`npm run world` 16；`npm run dashboard` 46；`npm run check` 543；`npm run build` 通过。
+**验证**：`npm run world` 16；`npm run dashboard` 46；`npm run check` 554；`npm run build` 通过。
 
 **明确留到后续**（见 P4-27…31）：
 
@@ -688,3 +704,32 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 3. 事件记录只接现有快讯，文案未做历史考证，也还没有筛选/联动。
 4. 研发/制造/贸易工作页仍复用旧面板，后续再按主界面风格重设计。
 5. 厂牌只存本机 `localStorage`，logo 是 PNG data URL；换设备/清缓存会丢。
+
+---
+
+## 附录 P：Windows 桌面版（2026-11-04）
+
+**需求**：把游戏做成 `.exe` 启动的桌面游戏；主菜单设置可选全屏 / 窗口化全屏幕 / 窗口，并设置主音量、音乐、音效（音频播放后续再做）。
+
+**架构**：不改模拟与 UI，只加 Electron 壳和平台设置层。
+
+- `desktop/main.ts`：自定义协议 `app://tankworks/`、单实例锁、`window-state.json`（模式 + bounds）、三显示模式、模式切换重建窗口、IPC、外链拦截
+- `desktop/preload.ts`：contextBridge 暴露 `window.tankWorksDesktop`，不暴露 `ipcRenderer`
+- `desktop/build.mjs`：esbuild 打 CJS main/preload（ESM main 会报 electron 无 `BrowserWindow` 命名导出）
+- `desktop/pack.mjs` + `electron-builder.yml`：electron-builder，NSIS 安装包 + portable exe，输出 `release/`
+- `src/platform/settings.ts`：`tank-works.settings.v1` 统一设置；兼容旧版只有 `reduceMotion`
+- `src/platform/desktop.ts`：桌面桥接口与全局类型
+- `src/tank/menu-main.ts` / `menu.css`：设置覆盖层加三模式按钮、三条音量滑条；桌面版退出直接 `quit()`；浏览器禁用模式按钮
+- `build/icon.ico` / `build/icon.png`：深色圆角底 + 两块琥珀方块
+
+**坑**：
+
+- Electron 二进制默认从 GitHub 下载会被重置；用 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` 重跑 `node node_modules/electron/install.js`
+- 本机有 `ELECTRON_RUN_AS_NODE=1`，直接跑 electron.exe 会当 Node 执行；启动前删除该环境变量
+- `fullscreen: true` 在构造参数里不生效，改到 `ready-to-show` 后 `setFullScreen(true)`
+- 写 `window-state.json` 的 UTF-8 BOM 会让 `JSON.parse` 失败并回退窗口模式；读时 `replace(/^\uFEFF/, '')`
+- 模式切换只能重建窗口（Electron 不能运行时改 `frame`）；因此设置只在主菜单提供
+
+**验证**：`npm run check` 554；`npm run build`；`release/win-unpacked/Tank Works.exe` 冒烟；window 1280×800 可缩放、borderless 1920×1035、fullscreen `isFullScreen=true`；打包产物 `Tank Works-0.2.0-x64.exe` 与 `Tank Works-0.2.0-portable.exe`。
+
+**后续**：音频资源与播放逻辑（P1-19）；文件系统存档（P3-24）；代码签名；自动更新；模式内实时切换（自定义无边框标题栏）。
