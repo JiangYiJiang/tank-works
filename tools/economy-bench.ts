@@ -13,7 +13,7 @@ import { acceptOffer, auditBribes, bidPrice, productCandidates, productMeets, re
 import { buildTank } from '../src/tank/model/build'
 import { designYear } from '../src/tank/model/era'
 import { HISTORICAL } from '../src/tank/data/historical'
-import { blocOf, customerAllowed } from '../src/tank/data/nations'
+import { customersFor } from '../src/tank/data/nations'
 import { decodeSave, encodeSave } from '../src/tank/sim/save'
 import { borrow, creditLimit, repay } from '../src/tank/sim/loan'
 import { LINE_COST, MAX_LINES, addProductionLine, upgradeLine } from '../src/tank/sim/lines'
@@ -74,32 +74,19 @@ check('交完后有新标', g.offers.length === 3, `实际 ${g.offers.length}`)
 check('交完后产线停工（不烧工资）', g.factory?.lines[0]?.state === 'idle', g.factory?.lines[0]?.state)
 check('按期交付信誉上涨', g.rep > 50, String(g.rep))
 
-// ── 3b. 阵营与出口限制 ────────────────────────────────────
-check('1941 法国属同盟', blocOf('fra', 1941) === 'allies')
-check('1941 德国属轴心', blocOf('ger', 1941) === 'axis')
-check('1950 苏联属东方', blocOf('sov', 1950) === 'east')
-check('1950 法国属西方', blocOf('fra', 1950) === 'west')
-check('1941 德国买不到苏联车', !customerAllowed('ger', 'sov', 1941))
-check('1941 德国能买意大利车', customerAllowed('ger', 'ita', 1941))
-check('中立国谁都能卖', customerAllowed('swe', 'sov', 1941))
-
-const axis = createGame(61)
-axis.era = 3
-axis.day = dayOf(1941, 6, 1)
-axis.home = 'ger'
-refreshOffers(axis, true)
-const axisNations = axis.offers.map((o) => o.nation)
-check('轴心客户里没有苏联', !axisNations.includes('苏联'), axisNations.join(','))
-check('轴心客户全是轴心或中立', axisNations.every((n) => ['意大利', '日本', '瑞典', '瑞士'].includes(n)), axisNations.join(','))
-
-const allied = createGame(63)
-allied.era = 3
-allied.day = dayOf(1941, 6, 1)
-allied.home = 'sov'
-refreshOffers(allied, true)
-const alliedNations = allied.offers.map((o) => o.nation)
-check('同盟客户里没有德国', !alliedNations.includes('德国'), alliedNations.join(','))
-check('同盟客户里有英国或美国', alliedNations.some((n) => n === '英国' || n === '美国'), alliedNations.join(','))
+// ── 3b. 国家市场（阵营限制暂关） ──────────────────────────
+const pool1941 = customersFor('ger', 1941)
+check('1941 德国可以买苏联车', pool1941.some((n) => n.id === 'sov'))
+check('1941 德国可以买法国车', pool1941.some((n) => n.id === 'fra'))
+check('1941 德国可以买英美车', pool1941.some((n) => n.id === 'gbr') && pool1941.some((n) => n.id === 'usa'))
+check('客户池排除本国', !pool1941.some((n) => n.id === 'ger'))
+check('中立国也在客户池里', pool1941.some((n) => n.id === 'swe') && pool1941.some((n) => n.id === 'che'))
+check('1941 客户池包含意日', pool1941.some((n) => n.id === 'ita') && pool1941.some((n) => n.id === 'jpn'))
+check('1918 苏联尚未进入市场', !customersFor('ger', 1918).some((n) => n.id === 'sov'))
+check('1949 中国进入市场', customersFor('ger', 1949).some((n) => n.id === 'chn'))
+check('1941 客户池 9 国', pool1941.length === 9, String(pool1941.length))
+check('瑞典可以同时卖德苏', customersFor('swe', 1941).some((n) => n.id === 'ger') && customersFor('swe', 1941).some((n) => n.id === 'sov'))
+check('瑞典客户池排除瑞典', !customersFor('swe', 1941).some((n) => n.id === 'swe'))
 
 // ── 4. 存档往返 ────────────────────────────────────────────
 const json = encodeSave(g)

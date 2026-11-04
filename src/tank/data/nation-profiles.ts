@@ -2,7 +2,7 @@
  * 开局国家卡片：给「新游戏」的国家选择页用。
  *
  * 这里只放展示信息，不参与模拟。真正开局仍然写 GameState.home，
- * 客户阵营、招标与竞品都继续走 data/nations.ts 的规则。
+ * 客户池、招标与竞品都继续走 data/nations.ts 的规则。
  */
 
 import type { NationId } from './nations'

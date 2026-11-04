@@ -1,13 +1,12 @@
 /**
- * 国家与阵营。
+ * 国家与市场。
  *
- * 阵营不是固定的「德国永远是轴心」—— 它随年代变：
- *   1939–1945：同盟国 vs 轴心国
- *   1947–1991：西方 vs 东方
- *   其余年份（1915–1938、1946）：自由军贸，谁都能买
+ * 这里只负责「有哪些国家、从哪一年进入军贸市场」。
  *
- * 玩家开局选一个国家，客户阵营不同就买不到你的车。这条规则让「选国家」
- * 成为开局第一个大决策，而不是换一层皮。
+ * 阵营系统暂时关闭：原来的 1939–45 同盟/轴心、1947–91 西方/东方分段
+ * 不足以表达历史（法国 1940 投降、美国 1917 参战前后都不同），
+ * 后续会按年份、投降/参战事件重新设计。当前所有已进入市场的国家
+ * 都可以向任何客户供货，只排除本国。
  */
 
 export type NationId = 'fra' | 'gbr' | 'usa' | 'sov' | 'ger' | 'ita' | 'csk' | 'jpn' | 'chn' | 'swe' | 'che'
@@ -36,40 +35,9 @@ export const NATIONS: readonly Nation[] = [
 
 export const NATION_BY_ID = new Map(NATIONS.map((n) => [n.id, n]))
 
-const AXIS: NationId[] = ['ger', 'ita', 'jpn']
-const ALLIES: NationId[] = ['fra', 'gbr', 'usa', 'sov', 'chn', 'csk']
-const WEST: NationId[] = ['fra', 'gbr', 'usa', 'ger', 'ita', 'jpn']
-const EAST: NationId[] = ['sov', 'chn', 'csk']
-const NEUTRAL: NationId[] = ['swe', 'che']
-
-export type Bloc = 'axis' | 'allies' | 'west' | 'east' | 'neutral'
-
-/** 某国在某年属于哪个阵营。 */
-export function blocOf(id: string, year: number): Bloc {
-  if (year < 1939 || year >= 1946) {
-    // 1939 前与 1946 是自由军贸；1947 起进入冷战
-    if (year < 1939) return 'neutral'
-    if (year === 1946) return 'neutral'
-    if (EAST.includes(id as NationId)) return 'east'
-    if (WEST.includes(id as NationId)) return 'west'
-    return 'neutral'
-  }
-  if (AXIS.includes(id as NationId)) return 'axis'
-  if (ALLIES.includes(id as NationId)) return 'allies'
-  return 'neutral'
-}
-
-/** 这个客户现在能不能买你的车。中立国谁都能卖；其余必须同阵营。 */
-export function customerAllowed(home: string, customer: string, year: number): boolean {
-  const h = blocOf(home, year)
-  const c = blocOf(customer, year)
-  if (c === 'neutral' || h === 'neutral') return true
-  return h === c
-}
-
-/** 当前能卖的国家（不含本国）。 */
+/** 当前能卖的国家：所有已进入市场的国家，排除本国。阵营限制暂不启用。 */
 export function customersFor(home: string, year: number): Nation[] {
-  return NATIONS.filter((n) => n.id !== home && (n.from ?? 0) <= year && customerAllowed(home, n.id, year))
+  return NATIONS.filter((n) => n.id !== home && (n.from ?? 0) <= year)
 }
 
 export function nationName(id: string): string {

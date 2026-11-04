@@ -1010,7 +1010,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     repValue.textContent = `${state.rep} / 100${state.bribes > 0 ? ` · 未消账 ${state.bribes}` : ''}`
     homeSelect.value = state.home
     homeSelect.disabled = state.day !== 0 || state.factory !== null || state.contract !== null
-    homeSelect.title = homeSelect.disabled ? '开工之后不能改国籍' : '换国家会按新阵营重新招标'
+    homeSelect.title = homeSelect.disabled ? '开工之后不能改国籍' : '换国家会重新招标'
     debtValue.textContent = `${money(state.debt)} / ${money(creditLimit(state))}`
     borrowBtn.disabled = state.over || availableCredit(state) < LOAN_STEP
     repayBtn.disabled = state.over || state.debt <= 0 || state.cash < Math.min(LOAN_STEP, state.debt)

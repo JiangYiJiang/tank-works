@@ -171,7 +171,7 @@ export function mountNationSelect(root: HTMLElement, opts: NationOptions = {}): 
       el('h1', { text: '选择你的国家' }),
       el('p', {
         class: 'nation-lede',
-        text: '不同国家的坦克工业起点、客户阵营与技术路线不同。先定国家，再开始这间厂。',
+        text: '不同国家的坦克工业起点与技术路线不同。先定国家，再开始这间厂。',
       }),
     ),
     el(
