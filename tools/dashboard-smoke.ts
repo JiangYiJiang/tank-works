@@ -1,5 +1,5 @@
 /**
- * 主界面冒烟测试：四局入口、9 国编制、地图占位、事件记录、首次建厂登记。
+ * 主界面冒烟测试：五局入口、9 国编制、地图占位、事件记录、首次建厂登记。
  * 时钟/经济/任务由别的台验；这里只验「新主界面装上去之后，线还接着」。
  */
 
@@ -58,11 +58,13 @@ doc.body.appendChild(root as never)
 mountGame(root, { storage: store, seed: () => 1, founder: false })
 
 check('主界面停在 1916年9月15日', txt(root, '.date') === '1916年9月15日', txt(root, '.date'))
-check('四个局入口都在', all(root, '.bureau-card').length === 4, `实际 ${all(root, '.bureau-card').length}`)
+check('五个局入口都在', all(root, '.bureau-card').length === 5, `实际 ${all(root, '.bureau-card').length}`)
 check(
-  '四卡顺序是研发/设计/制造/贸易',
-  all(root, '.bureau-card').map((c) => c.getAttribute('data-bureau')).join(',') === 'research,design,manufacture,trade',
+  '五卡顺序是外交/研发/设计/制造/贸易',
+  all(root, '.bureau-card').map((c) => c.getAttribute('data-bureau')).join(',') === 'diplomacy,research,design,manufacture,trade',
 )
+check('进入游戏默认外交局', q(root, '.bureau-diplomacy')?.classList.contains('active') === true)
+check('默认显示外交局内容', q(root, '.dashboard')?.classList.contains('hidden') === false)
 check('贸易局已改名', txt(root, '.bureau-trade .bureau-title') === '贸易局', txt(root, '.bureau-trade .bureau-title'))
 check('没有旧游说局卡片', !root.textContent!.includes('游说局'))
 check('地图占位框在', q(root, '.map-frame') !== null)
@@ -91,13 +93,16 @@ click(root, '.country-card[data-country="fra"]')
 check('切到法国后英国详情收起', q(root, '.country-card[data-country="gbr"]')?.classList.contains('open') === false)
 check('1916 法国显示尚未列装', root.textContent!.includes('尚未列装坦克'))
 
-// 四局页面切换
+// 五局页面切换：卡片一直在，只换下面内容
 click(root, '.bureau-research')
 check('研发局页打开', q(root, '.bureau-page-research')?.classList.contains('hidden') === false)
-check('主界面隐藏', q(root, '.dashboard')?.classList.contains('hidden') === true)
+check('外交局内容隐藏', q(root, '.dashboard')?.classList.contains('hidden') === true)
+check('研发页打开时五卡仍在', q(root, '.bureau-grid')?.classList.contains('hidden') === false)
+check('研发卡高亮', q(root, '.bureau-research')?.classList.contains('active') === true)
 check('研发页有研究纪律侧栏', txt(root, '.bureau-page-research').includes('研究纪律'))
 click(root, '.bureau-page-research .bureau-back')
-check('从研发局返回主界面', q(root, '.dashboard')?.classList.contains('hidden') === false)
+check('从研发局返回外交局', q(root, '.dashboard')?.classList.contains('hidden') === false)
+check('外交卡恢复高亮', q(root, '.bureau-diplomacy')?.classList.contains('active') === true)
 
 click(root, '.bureau-manufacture')
 check('制造局页打开', q(root, '.bureau-page-manufacture')?.classList.contains('hidden') === false)

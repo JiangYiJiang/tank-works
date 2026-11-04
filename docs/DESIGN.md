@@ -25,7 +25,7 @@
 
 游戏里没有「关卡」，只有一条真实的日历：1915-01-01 到 1991-12-31，**28,124 天**。时间连续流逝（1×/3×/10×/30× 天每秒），你可以随时暂停、快进、跳到下一件事。战争不会让时钟变慢，只会让你的订单变多、对手消耗变快。
 
-四个局，一条闭环：
+五个局，一条闭环：外交局看世界，研发 → 设计 → 制造 → 贸易 → 钱。
 
 ```
 研发局 ──► 设计局 ──► 制造局 ──► 贸易局 ──┐
@@ -163,10 +163,11 @@ M1 已经把这条件跑通了一半：**设计局的产品 → 制造局产线 
   └─ 1991-12-31：关厂，出总表（尚未实现）
 ```
 
-### 3.2 四个局的分工
+### 3.2 五个局的分工
 
 | 局 | 玩家在做什么 | 输入 | 输出 | 决策频率 |
 |---|---|---|---|---|
+| **外交局** | 看 9 国编制、世界态势、历史/厂内事件 | 年份、各国编制、事件记录 | 「现在该往哪卖」的判断 | 随时 |
 | **研发局** | 决定「接下来半年这 3 个槽干什么」 | 钱、槽位、速度、时代强度 | 可用的部件与技术系数 | 每季度几次 |
 | **设计局** | 拖六个槽位，找那个「刚好卖得掉」的配置 | 已解锁的部件、客户的门槛 | 型号、四维、单价成本 | 每次接单前 |
 | **制造局** | 排产、囤料、决定开几条线、要不要换型 | 型号的工时与材料定额 | 成品库存 | 每月几次 |
@@ -1536,7 +1537,7 @@ v1–v6 老存档可以读：产品默认 FT-17，没有产线与订单，研发
 |---|---|---|---|---|
 | 主菜单 | `/` | `index.html` / `src/tank/menu-entry.ts` | 加载游戏、新游戏、设置、退出；左侧 logo，右侧背景预留 | ✅ 入口页 |
 | 国家选择 | `/nations.html` | `src/tank/nation-entry.ts` | 9 张国家卡：国旗、国名、坦克发展历程；选中后开始新局 | ✅ 新游戏流程 |
-| 游戏壳 | `/game.html` | `src/tank/game/shell.ts` | 主界面：时钟/历史线、四局入口、9 国编制、地图占位、事件记录、建厂登记 | ✅ 可玩闭环 |
+| 游戏壳 | `/game.html` | `src/tank/game/shell.ts` | 主界面：时钟/历史线、五局入口、9 国编制、地图占位、事件记录、建厂登记 | ✅ 可玩闭环 |
 | 设计局（预览） | `/tank.html` | `src/tank/main.ts` | 拼车、看四维、看代价、按科技过滤；游戏内用 `?embedded=1` | ✅ 预览 / 调试 |
 | 研发局 | `/research.html` | `src/tank/research-main.ts` | 科技树、超前/追赶、落后年数 | ✅ 可用 |
 | 制造局 | `/manufacture.html` | `src/tank/manufacture-main.ts` | 产线、仓库、学习曲线 | ✅ 独立试算页（主循环同一模型） |
@@ -1545,11 +1546,11 @@ v1–v6 老存档可以读：产品默认 FT-17，没有产线与订单，研发
 
 **国家选择页**：`/nations.html` 列首批 9 国（美、英、法、德、意、捷克斯洛伐克、瑞典、苏联、日本）。每张卡由 `data/nation-profiles.ts` 的 `flagSvg()` 内联 SVG 国旗、国名/英文名/年份、`tagline`、`history`、代表车 `tanks` 组成；卡是 `button.nation-card[data-id][aria-pressed]`，未选时底部「开始游戏」为灰、禁用，选中后卡片琥珀高亮并显示「已选择」，按钮才亮起。开始游戏时清 `RUN_KEYS`（v7 + legacy 存档、科技快照、设计草稿），导航到 `./game.html?day=0&home=<id>`；主循环从 URL 读 `home`，校验后传给 `createGame(seed, home)`，开工后锁定国籍。窄屏 3→2→1 列，操作条 sticky 在底部。
 
-**游戏主界面**：顶栏保留日期、时代、暂停/速度、报告、跳到下一件事；下面是 8 段历史线。主体 `.dashboard` 分四层：
+**游戏主界面**：顶栏保留日期、时代、暂停/速度、报告、跳到下一件事；下面是 8 段历史线。`.stage` 分两段：上方 `.bureau-header` 是常驻壳（厂牌/读数 + 五个局卡），下方 `.page-host` 只换当前局的内容；进入游戏默认是**外交局**。
 
 1. `.dash-top`：左侧厂牌（厂名、logo 或首字、国家/登记状态、改名入口），右侧现金/信誉/债务/产品四项读数。
-2. `.bureau-grid`：研发、设计、制造、贸易四张 `.bureau-card`。研发/制造/贸易用 `setView('research'|'manufacture'|'trade')` 切到工作页，设计仍打开原 iframe 覆盖层；页面切换只隐藏/显示节点，不重建，避免丢事件与重复渲染。
-3. `.dashboard-grid` 三列：左 `.country-column` 是 9 国编制卡（`data/world.ts` 的 `worldAt(id, year)`），点卡展开 `.country-detail`，列出型号、四维、总分、数量；列表 `overflow-y:auto`，年份变化时重建。中 `.map-column` 是 `.map-frame` 地图占位（扫描线、网格、图例、坐标），国界/阵营色块/战线后续接。右 `.event-column` 是事件记录，复用 `state.log`，`.k-era/.k-news` 琥珀色、`.k-note` 白色。
+2. `.bureau-grid`：外交、研发、设计、制造、贸易五张 `.bureau-card`，当前页有 `.active` 高亮。外交/研发/制造/贸易用 `setView('diplomacy'|'research'|'manufacture'|'trade')` 切页；设计仍打开原 iframe 覆盖层（打开时设计卡高亮，关闭恢复原页）。切页只隐藏/显示 `.page-host` 里的节点，不重建，所以卡片和顶部读数一直在。
+3. `.dashboard` 是外交局内容，三列：左 `.country-column` 是 9 国编制卡（`data/world.ts` 的 `worldAt(id, year)`），点卡展开 `.country-detail`，列出型号、四维、总分、数量；列表 `overflow-y:auto`，年份变化时重建。中 `.map-column` 是 `.map-frame` 地图占位（扫描线、网格、图例、坐标），国界/阵营色块/战线后续接。右 `.event-column` 是事件记录，复用 `state.log`，`.k-era/.k-news` 琥珀色、`.k-note` 白色。
 4. 首次进入弹 `.founder-overlay`：厂名输入 + 560×260 canvas 白板，`pointerdown/move/up` 手绘，`toDataURL('image/png')` 保存；厂牌存 `tank-works.company.v1`（`src/platform/company.ts`），登记期间 `step()` 冻结时钟；改名/换 logo 从 `.company-edit` 再开，取消保留原厂牌。
 
 地图和事件文案是**有意留的下一步**：地图只有占位框，国家编制是占位估算，事件记录只接现有 29 条快讯；这些边界写在 STATUS 附录 O，不在界面里假装已经做完。
@@ -1561,7 +1562,7 @@ v1–v6 老存档可以读：产品默认 FT-17，没有产线与订单，研发
 ```
 /game.html?design=1           直接打开游戏内设计覆盖层
 /game.html?day=0&home=ger     指定开局国家（跳过国家选择页）
-/game.html?view=trade         直接打开贸易局页（research / manufacture 同理）
+/game.html?view=trade         直接打开贸易局页（diplomacy / research / manufacture 同理；外交局是默认）
 /research.html?year=1960      把「今天」拨到 1960
 /manufacture.html?days=200    开局直接推进 200 天
 /game.html?day=9009           从某一天开局（1939-09-01）
@@ -1631,7 +1632,7 @@ tank-works/
 │  │  │  ├─ bureau.ts + style.css          设计局
 │  │  │  ├─ research.ts + research.css     研发局
 │  │  │  └─ manufacture.ts + factory.css   制造局
-│  │  ├─ game/shell.ts + style.css         游戏主界面 / 四局页 / 建厂登记
+│  │  ├─ game/shell.ts + style.css         游戏主界面 / 五局页 / 建厂登记
 │  │  ├─ menu-main.ts + menu-entry.ts + menu.css   主菜单
 │  │  └─ nation-main.ts + nation-entry.ts + nation.css  国家选择页
 │  └─ platform/
@@ -1833,7 +1834,7 @@ npm install           # 首次
 npm run dev           # 开发服务器 127.0.0.1:5273，六个页面
 npm run build         # 构建到 dist/（六个入口，相对路径）
 npm run preview       # 预览打包结果
-npm run check         # 全部检查：类型 + 校准 + 节奏 + 16 个检查台（538 项断言）
+npm run check         # 全部检查：类型 + 校准 + 节奏 + 13 个检查台（543 项断言）
 
 npm run design        # 19 辆历史车校准表
 npm run ballistics    # 弹道两轴表
@@ -1850,7 +1851,7 @@ npm run smoke:game    # 游戏壳界面 104 项
 npm run menu          # 主菜单界面 36 项
 npm run nation        # 国家选择页 34 项
 npm run world         # 世界编制 16 项
-npm run dashboard     # 游戏主界面 41 项
+npm run dashboard     # 游戏主界面 46 项
 npm run smoke:research # 研发局界面 27 项
 npm run smoke:mf      # 制造局界面 21 项
 

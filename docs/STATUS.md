@@ -14,7 +14,7 @@
 | 设计局 · 物理模型 | ✅ 完成 | 六槽位 → 七步管线；19 辆历史车全部落在门限内 |
 | 主菜单 | ✅ 完成 | 加载游戏、新游戏、设置、退出；左侧 logo，右侧背景预留 |
 | 国家选择 | ✅ 完成 | 新游戏先过 9 国卡片页；国旗、国名、发展历程；选中后才开始 |
-| 游戏主界面 | ✅ 首版 | 四局入口、9 国编制、地图占位、事件记录、首次建厂登记 |
+| 游戏主界面 | ✅ 首版 | 五局入口（默认外交局）、9 国编制、地图占位、事件记录、首次建厂登记 |
 | 设计局 · 界面 | ✅ 完成 | 四维、19 项物理量、耦合与代价、弹道三轴、成本、缺陷 |
 | 时钟与事件 | ✅ 完成 | 28,124 天、8 时代、29 条快讯；存档有上限（1,116 B → 3,979 B） |
 | 研发局 · 数据与节奏 | ✅ 完成 | 159 条技术 / 65 梯子 / 7 泳道；槽月预算 + 九策略 |
@@ -27,7 +27,7 @@
 
 **一句话：主循环能转、科技树能推、设计能卖、标能抢、市场全开、钱能借、线能加、账能算；阵营系统待重做，联机不做。**
 
-检查台现状：`npm run check` = 类型检查 + 16 个检查台，**538 项断言全绿**（见 §1.15）。
+检查台现状：`npm run check` = 类型检查 + 13 个检查台，**543 项断言全绿**（见 §1.15）。
 
 > **阵营系统暂关**：旧的 1939–45 同盟/轴心、1947–91 东西方分段已从代码移除，所有进入市场的国家都能供货，只排除本国。后续按法国 1940、美国 1917 这类历史事件重新设计。
 
@@ -184,14 +184,14 @@
 ### 1.14 游戏主界面 ✅（首版）
 
 - 顶部保留日期、时代、暂停/速度、报告、跳到下一件事；下面是 8 段历史线
-- `.dash-top`：厂牌（厂名 + logo/首字 + 国家/登记状态 + 改名入口）+ 现金/信誉/债务/产品四项读数
-- `.bureau-grid`：研发、设计、制造、贸易四张卡；研发/制造/贸易切到游戏内工作页，设计仍打开 iframe 覆盖层
-- `.dashboard-grid` 三列：左侧 9 国编制卡（`src/tank/data/world.ts`，点开展开型号/四维/总分/数量，列表可滚动）；中间 `.map-frame` 地图占位；右侧事件记录（历史 `.k-era/.k-news` 琥珀色、厂内 `.k-note` 白色）
+- `.dash-top` + `.bureau-grid` 是常驻壳：厂牌、现金/信誉/债务/产品，以及外交/研发/设计/制造/贸易五张卡；当前局有 `.active` 高亮
+- 默认进入**外交局**：`.dashboard-grid` 三列——左侧 9 国编制卡（`src/tank/data/world.ts`，点开展开型号/四维/总分/数量，列表可滚动）；中间 `.map-frame` 地图占位；右侧事件记录（历史 `.k-era/.k-news` 琥珀色、厂内 `.k-note` 白色）
+- 外交/研发/制造/贸易用 `setView()` 只换 `.page-host` 里的内容，顶部壳和五卡不动；设计仍打开 iframe 覆盖层，打开时设计卡高亮、关闭恢复原页
 - 首次进入弹建厂登记：厂名 + 560×260 canvas 白板手绘 logo；存 `tank-works.company.v1`，登记期间冻结时钟；改名/换 logo 从 `.company-edit` 再开
 - 研发/贸易页加「研究纪律 / 成交纪律」侧栏；制造页保留厂子 + 产线 + 局势三块
-- 响应式：三列 → 两列 → 单列；国家列表独立滚动
+- 响应式：五卡 5→3→2→1 列；外交三列 → 两列 → 单列；国家列表独立滚动
 
-**验证**：`npm run world` → **16 项**；`npm run dashboard` → **41 项**（四卡、9 国、地图、事件、展开、页面切换、建厂登记）；`npm run smoke:game` → 104 项
+**验证**：`npm run world` → **16 项**；`npm run dashboard` → **46 项**（五卡、默认外交、9 国、地图、事件、展开、页面切换、建厂登记）；`npm run smoke:game` → 104 项
 
 ### 1.15 检查台
 
@@ -213,10 +213,10 @@
 | 主菜单界面 | `npm run menu` | 36 | ✅ |
 | 国家选择界面 | `npm run nation` | 34 | ✅ |
 | 世界编制 | `npm run world` | 16 | ✅ |
-| 游戏主界面 | `npm run dashboard` | 41 | ✅ |
+| 游戏主界面 | `npm run dashboard` | 46 | ✅ |
 | 研发局界面 | `npm run smoke:research` | 27 | ✅ |
 | 制造局界面 | `npm run smoke:mf` | 21 | ✅ |
-| **合计** | | **538 项断言** | |
+| **合计** | | **543 项断言** | |
 
 ---
 
@@ -224,7 +224,7 @@
 
 按依赖顺序排列。编号（P0-1、P2-14……）是稳定标识，文档别处引用这些编号。
 
-### P0：把四个局接成一条闭环（M1 已通，剩下加厚）
+### P0：把五个局接成一条闭环（M1 已通，剩下加厚）
 
 | # | 功能 | 状态 | 说明 |
 |---|---|---|---|
@@ -279,7 +279,8 @@
 | 27 | **动态世界地图** | 主界面只留了 `.map-frame` 占位：网格、扫描线、图例、坐标。下一步接国界 GeoJSON、阵营色块、战线推移、历史节点动画；这是大工程，先不假装做完 |
 | 28 | **真实国家编制** | `data/world.ts` 现在 9 国、19 辆真实 fixture + 估算型号，数量按服役年数爬坡。下一步查各国现役/产量/军援/战损/退役档案，并补次要国家 |
 | 29 | **事件记录文案与筛选** | 现在只接开局时代事件 + 29 条快讯；历史大事件/厂内事件用颜色区分。下一步写真实历史文案、按年代/类型筛选、和左侧地图节点联动 |
-| 30 | **四局工作页深化** | 目前研发/制造/贸易页复用旧面板，只做了切页与侧栏；后续按新主界面的层级重设计（研发树、厂房布局、市场盘口） |
+| 30 | **各局工作页深化** | 目前研发/制造/贸易页复用旧面板，只做了切页与侧栏；后续按新主界面的层级重设计（研发树、厂房布局、市场盘口） |
+| 31 | **外交局情报层深化** | 当前外交局是「看世界」入口：9 国编制、地图占位、事件记录。下一步把 9 国编制/地图/事件做成可联动的情报面；外交动作与历史阵营重做后另开设计 |
 
 ---
 
@@ -367,7 +368,7 @@
 npm run dev            # 六个页面，127.0.0.1:5273
 npm run build          # 类型检查 + 打包到 dist/（相对路径，可 file:// 打开）
 npm run preview        # 本地预览打包结果
-npm run check          # 538 项断言的完整回归，提交前跑这个
+npm run check          # 543 项断言的完整回归，提交前跑这个
 
 # 单个检查台
 npm run design         # 19 辆历史车校准
@@ -381,7 +382,7 @@ npm run scale          # 经济尺度（8 个时代的毛利 / 工期 / 首单�
 npm run menu           # 主菜单（四按钮、存档摘要、设置、退出）
 npm run nation         # 国家选择页（9 国、选中态、开始新局）
 npm run world          # 世界编制（9 国、年份过滤、数量爬坡）
-npm run dashboard      # 游戏主界面（四卡、9 国、地图、事件、建厂登记）
+npm run dashboard      # 游戏主界面（五卡、9 国、地图、事件、建厂登记）
 npm run economy        # 经济闭环验收（接单 → 交付 → 回款）
 npm run smoke:tank     # 设计局界面
 npm run smoke:game     # 游戏内界面
@@ -446,7 +447,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **M1 简化（已替换）**：空档期不烧维持费；换型即时免费；多线/贷款/信誉/竞品/贿赂/结算总表后来已接。
 
-**验证**：`npm run check` → 538 项断言；`npm run economy` → 96 项；`npm run smoke:game` → 104 项。
+**验证**：`npm run check` → 543 项断言；`npm run economy` → 96 项；`npm run smoke:game` → 104 项。
 
 ---
 
@@ -461,7 +462,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 数据修正：`ww2_simple` 年代 1944 → 1941（否则 T-34/76 会被判成超前 3 年，见 `data/parts.ts`）
 - 年代闸门：`designYear ≤ 当前年份 + 2`，同时在 `acceptOffer` 里兜底，防止绕过 UI
 
-**验证**：`npm run check` → 538 项；`smoke:tank` 37；`smoke:game` 104；`economy` 96。
+**验证**：`npm run check` → 543 项；`smoke:tank` 37；`smoke:game` 104；`economy` 96。
 
 ---
 
@@ -501,7 +502,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **刻意不进评分**：装填 / 倒车 / 俯仰只进读数，避免 19 辆历史车分数漂移（决策 31）。
 
-**验证**：`npm run metrics` → 13 项；`smoke:tank` 37；`check` 538。
+**验证**：`npm run metrics` → 13 项；`smoke:tank` 37；`check` 543。
 
 ---
 
@@ -599,7 +600,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **决定：暂不做多合同**（选 B）。当前一局的核心决策已经够多（国家/产品/研发/接单方式/产能），多合同会先把 UI 与存档复杂度翻倍，而收益主要是后期。等核心循环稳定后再评估 A。
 
-**验证**：`npm run research` 49；`npm run metrics` 13；`smoke:tank` 37；`check` 538。
+**验证**：`npm run research` 49；`npm run metrics` 13；`smoke:tank` 37；`check` 543。
 
 ---
 
@@ -615,7 +616,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `src/tank/menu.css`：深色蓝图风、响应式；`docs/images/menu.png`
 - `src/platform/save-keys.ts`：存档键集中，壳与菜单共用
 
-**验证**：`npm run menu` 36；`check` 538。
+**验证**：`npm run menu` 36；`check` 543。
 
 ---
 
@@ -629,7 +630,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 点应用后 `postMessage` 回主循环；主循环用 `buildTank` + `designCheck` 再校验，通过后替换 `state.design`
 - 关闭覆盖层清草稿；科技快照仍由主循环发布，零件表按当前科技过滤
 
-**验证**：`smoke:game` 104；`check` 538。
+**验证**：`smoke:game` 104；`check` 543。
 
 ---
 
@@ -646,7 +647,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `vite.config.ts` 增加 nations 入口；`package.json` 增加 `npm run nation`
 - `docs/images/nation-select.png`
 
-**验证**：`npm run nation` 34；`smoke:game` 104；`npm run menu` 36；`check` 538。
+**验证**：`npm run nation` 34；`smoke:game` 104；`npm run menu` 36；`check` 543。
 
 ---
 
@@ -659,28 +660,28 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `tools/economy-bench.ts`：3b 段改为自由市场，11 项断言（1941 客户池 9 国、瑞典可同时卖德苏、1918 无苏联、1949 有中国等）
 - README / DESIGN / STATUS：统一标注「阵营暂关」，保留 `home` 作为厂旗与身份字段
 
-**验证**：`npm run economy` 96；`check` 538。
+**验证**：`npm run economy` 96；`check` 543。
 
 ---
 
 ## 附录 O：游戏主界面（2026-11-04）
 
-**需求**：保留顶部时间/历史线；四卡进入研发/设计/制造/贸易（游说局改名贸易局）；中间动态世界地图先占位；左侧 9 国编制卡可展开；右侧历史/厂内事件记录；首次进入登记厂名并手绘 logo。
+**需求**：保留顶部时间/历史线；五卡进入外交/研发/设计/制造/贸易（游说局改名贸易局，默认外交局）；卡片以上内容常驻，切页只换下方；外交局中间动态世界地图先占位；左侧 9 国编制卡可展开；右侧历史/厂内事件记录；首次进入登记厂名并手绘 logo。
 
 **新增**：
 
-- `src/tank/game/shell.ts`：`.dash-top`、`.bureau-grid`、`.dashboard-grid`、`.country-column`、`.map-column`、`.event-column`、`.founder-overlay`；四局 `setView()` 切页
-- `src/tank/game/style.css`：主界面三列、国家编制/详情、地图占位与扫描、事件列、建厂登记、响应式
+- `src/tank/game/shell.ts`：`.bureau-header`（`.dash-top` + 五卡 `.bureau-grid`，常驻）、`.page-host`（外交 `.dashboard` + 研发/制造/贸易工作页）、`.dashboard-grid`（国家/地图/事件三列）、`.founder-overlay`；`setView()` 切页、`syncBureauActive()` 高亮、设计覆盖层打开/关闭时切设计卡
+- `src/tank/game/style.css`：主界面三列、国家编制/详情、地图占位与扫描、事件列、建厂登记、五卡 5→3→2→1 响应式
 - `src/tank/data/world.ts`：9 国装甲编制（真实 fixture + 估算，`worldAt(id, year)`）
 - `src/platform/company.ts`：厂名 + 手绘 logo，键 `tank-works.company.v1`；`RUN_KEYS` 加公司键
 - `src/tank/sim/state.ts`：开局日志补一条时代事件（`k:'era'`），事件列首次进入就有历史黄字
-- `tools/world-smoke.ts` 16 项；`tools/dashboard-smoke.ts` 41 项；`tools/game-smoke.ts` 改用 `.factory-panel`，`founder:false`
+- `tools/world-smoke.ts` 16 项；`tools/dashboard-smoke.ts` 46 项；`tools/game-smoke.ts` 改用 `.factory-panel`，`founder:false`
 - `docs/images/dashboard.png`
 - `docs/images/founder.png`
 
-**验证**：`npm run world` 16；`npm run dashboard` 41；`npm run check` 538；`npm run build` 通过。
+**验证**：`npm run world` 16；`npm run dashboard` 46；`npm run check` 543；`npm run build` 通过。
 
-**明确留到后续**（见 P4-27…30）：
+**明确留到后续**（见 P4-27…31）：
 
 1. 地图只有占位框，国界/阵营色块/战线/历史节点动画未接；需要地图数据与渲染层。
 2. 国家编制是占位估算，未做真实产量、军援、战损、退役；只保留 9 个主要国家。

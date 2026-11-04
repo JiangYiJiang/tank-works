@@ -117,8 +117,9 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   refreshOffers(state)
 
   let company: Company | null = readCompany(storage)
-  type DashboardView = 'home' | 'research' | 'manufacture' | 'trade'
-  let view: DashboardView = 'home'
+  type DashboardView = 'diplomacy' | 'research' | 'manufacture' | 'trade'
+  let view: DashboardView = 'diplomacy'
+  let activeBureau: DashboardView | 'design' = 'diplomacy'
   let selectedCountry: PlayableNationId | null = null
   let countrySig = ''
   let companySig = ''
@@ -302,10 +303,15 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     el('div', { class: 'dash-stats' }, dashStat('现金', dashCash), dashStat('信誉', dashRep), dashStat('债务', dashDebt), dashStat('产品', dashProduct)),
   )
 
+  const diplomacyMeta = el('span', { class: 'bureau-meta' })
   const researchMeta = el('span', { class: 'bureau-meta' })
   const designMeta = el('span', { class: 'bureau-meta' })
   const manufactureMeta = el('span', { class: 'bureau-meta' })
   const tradeMeta = el('span', { class: 'bureau-meta' })
+  const bureauButtons = new Map<string, HTMLButtonElement>()
+  function syncBureauActive(): void {
+    for (const [id, btn] of bureauButtons) btn.classList.toggle('active', id === activeBureau)
+  }
   const bureauCard = (
     id: string,
     index: string,
@@ -326,16 +332,19 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       el('span', { class: 'bureau-arrow', text: '→' }),
     )
     btn.addEventListener('click', onOpen)
+    bureauButtons.set(id, btn)
     return btn
   }
   const bureauGrid = el(
     'div',
     { class: 'bureau-grid' },
-    bureauCard('research', '01', '研发局', 'RESEARCH', 'R', researchMeta, () => setView('research')),
-    bureauCard('design', '02', '设计局', 'DESIGN', 'D', designMeta, openDesigner),
-    bureauCard('manufacture', '03', '制造局', 'MANUFACTURE', 'M', manufactureMeta, () => setView('manufacture')),
-    bureauCard('trade', '04', '贸易局', 'TRADE', 'T', tradeMeta, () => setView('trade')),
+    bureauCard('diplomacy', '01', '外交局', 'DIPLOMACY', 'G', diplomacyMeta, () => setView('diplomacy')),
+    bureauCard('research', '02', '研发局', 'RESEARCH', 'R', researchMeta, () => setView('research')),
+    bureauCard('design', '03', '设计局', 'DESIGN', 'D', designMeta, openDesigner),
+    bureauCard('manufacture', '04', '制造局', 'MANUFACTURE', 'M', manufactureMeta, () => setView('manufacture')),
+    bureauCard('trade', '05', '贸易局', 'TRADE', 'T', tradeMeta, () => setView('trade')),
   )
+  syncBureauActive()
 
   const countryList = el('div', { class: 'country-scroll' })
   const countryColumn = el(
@@ -417,14 +426,14 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   const dashboard = el(
     'section',
     { class: 'dashboard' },
-    dashTop,
-    bureauGrid,
     el('div', { class: 'dashboard-grid' }, countryColumn, mapPanel, eventColumn),
   )
 
+  const BUREAU_PAGE_INDEX: Record<string, string> = { research: '02', manufacture: '04', trade: '05' }
+
   function bureauPage(id: string, title: string, en: string, sub: string, ...content: Node[]): HTMLElement {
-    const back = el('button', { class: 'bureau-back', type: 'button', text: '← 返回主界面' })
-    back.addEventListener('click', () => setView('home'))
+    const back = el('button', { class: 'bureau-back', type: 'button', text: '← 外交局' })
+    back.addEventListener('click', () => setView('diplomacy'))
     return el(
       'section',
       { class: `bureau-page bureau-page-${id} hidden`, 'data-view': id },
@@ -439,7 +448,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
           el('h1', { text: title }),
           el('p', { text: sub }),
         ),
-        el('span', { class: 'bureau-head-index', text: id === 'research' ? '01' : id === 'manufacture' ? '03' : '04' }),
+        el('span', { class: 'bureau-head-index', text: BUREAU_PAGE_INDEX[id] ?? '' }),
       ),
       el('div', { class: 'bureau-body' }, ...content),
     )
@@ -496,8 +505,9 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     ),
   )
 
+  const bureauHeader = el('div', { class: 'bureau-header' }, dashTop, bureauGrid)
   const pageHost = el('div', { class: 'page-host' }, dashboard, researchPage, manufacturePage, tradePage)
-  const stage = el('main', { class: 'stage' }, pageHost)
+  const stage = el('main', { class: 'stage' }, bureauHeader, pageHost)
 
   // ── 首次建厂登记：厂名 + 白板手绘 logo ─────────────────────
 
@@ -737,11 +747,13 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
 
   function setView(next: DashboardView): void {
     view = next
-    dashboard.classList.toggle('hidden', view !== 'home')
+    activeBureau = next
+    syncBureauActive()
+    dashboard.classList.toggle('hidden', view !== 'diplomacy')
     researchPage.classList.toggle('hidden', view !== 'research')
     manufacturePage.classList.toggle('hidden', view !== 'manufacture')
     tradePage.classList.toggle('hidden', view !== 'trade')
-    if (view === 'home') renderDashboard()
+    if (view === 'diplomacy') renderDashboard()
   }
 
   function renderCompany(): void {
@@ -854,6 +866,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     dashProduct.textContent = state.design.name
 
     const projects = state.research.projects.length
+    diplomacyMeta.textContent = `${dateOf(state.day).year} 年 · ${state.log.length} 条记录`
     researchMeta.textContent = `${projects} 项在研 · ${slotsOf(state.research)} 槽`
     try {
       designMeta.textContent = `${state.design.name} · ${buildTank(state.design).score.total} 分`
@@ -932,6 +945,8 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       showFlash({ d: state.day, k: 'note', t: '浏览器不允许写本地存储，设计局打不开。' })
       return
     }
+    activeBureau = 'design'
+    syncBureauActive()
 
     const closeBtn = el('button', { class: 'design-close', type: 'button', text: '× 关闭' })
     const frame = el('iframe', {
@@ -956,6 +971,8 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       if (onMessage) window.removeEventListener('message', onMessage)
       overlay.remove()
       clearDraft()
+      activeBureau = view
+      syncBureauActive()
     }
     closeBtn.addEventListener('click', close)
     overlay.addEventListener('click', (e) => {
@@ -1718,7 +1735,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   render()
   publishTech()
   if (!company && opts.founder !== false) openFounder(false)
-  if (viewParam === 'research' || viewParam === 'manufacture' || viewParam === 'trade') setView(viewParam)
+  if (viewParam === 'diplomacy' || viewParam === 'research' || viewParam === 'manufacture' || viewParam === 'trade') setView(viewParam)
   if (new URLSearchParams(location.search).get('design') === '1') window.setTimeout(openDesigner, 80)
   requestAnimationFrame(rafLoop)
 
