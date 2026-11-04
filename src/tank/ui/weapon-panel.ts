@@ -19,6 +19,7 @@ import {
   totalRounds,
   validateWeapon,
   weaponMetrics,
+  weaponTechGates,
 } from '../model/weapon'
 import type { AmmoSpec, GunSpec, ShellType, TankDesign } from '../types'
 
@@ -57,6 +58,7 @@ export interface WeaponPanelOptions {
 export function mountWeaponPanel(root: HTMLElement, opts: WeaponPanelOptions): { sync: () => void } {
   const { design, limits, mastered, onChange } = opts
   if (!design.weapon) throw new Error('weapon panel needs design.weapon')
+  const gates = weaponTechGates(mastered)
 
   let tab: 'gun' | 'ammo' | 'rack' = 'gun'
   const tabs = el('div', { class: 'wpn-tabs' })
@@ -145,12 +147,16 @@ export function mountWeaponPanel(root: HTMLElement, opts: WeaponPanelOptions): {
 
   function select(
     label: string,
-    options: Array<{ value: string; label: string }>,
+    options: Array<{ value: string; label: string; disabled?: boolean }>,
     get: () => string,
     set: (v: string) => void,
   ): HTMLElement {
     const s = el('select', { class: 'sel wpn-select' })
-    for (const o of options) s.append(el('option', { value: o.value, text: o.label }))
+    for (const o of options) {
+      const op = el('option', { value: o.value, text: o.disabled ? `${o.label}（未解锁）` : o.label })
+      if (o.disabled) op.disabled = true
+      s.append(op)
+    }
     s.value = get()
     s.addEventListener('change', () => {
       set(s.value)
@@ -159,14 +165,15 @@ export function mountWeaponPanel(root: HTMLElement, opts: WeaponPanelOptions): {
     return row(label, s)
   }
 
-  function checkbox(label: string, get: () => boolean, set: (v: boolean) => void): HTMLElement {
+  function checkbox(label: string, get: () => boolean, set: (v: boolean) => void, locked = false): HTMLElement {
     const box = el('input', { class: 'chk', type: 'checkbox' }) as HTMLInputElement
     box.checked = get()
+    box.disabled = locked && !get()
     box.addEventListener('change', () => {
       set(box.checked)
       onChange()
     })
-    return el('label', { class: 'wpn-check' }, box, el('span', { text: label }))
+    return el('label', { class: 'wpn-check' }, box, el('span', { text: locked ? `${label}（未解锁）` : label }))
   }
 
   function gunTab(): HTMLElement {
@@ -175,12 +182,15 @@ export function mountWeaponPanel(root: HTMLElement, opts: WeaponPanelOptions): {
 
     const family = el('div', { class: 'wpn-seg' })
     for (const f of familyOptions()) {
+      const locked = f.value === 'howitzer' && !gates.howitzer
       const b = el('button', {
         class: g.family === f.value ? 'wpn-seg-btn on' : 'wpn-seg-btn',
         type: 'button',
-        text: f.label,
+        text: locked ? `${f.label}（未解锁）` : f.label,
+        disabled: locked && g.family !== f.value,
       })
       b.addEventListener('click', () => {
+        if (locked) return
         g.family = f.value
         g.caliber = Math.min(g.caliber, f.value === 'howitzer' ? limits.howitzerCaliberMax : limits.caliberMax)
         onChange()
@@ -207,7 +217,7 @@ export function mountWeaponPanel(root: HTMLElement, opts: WeaponPanelOptions): {
         '膛线',
         [
           { value: 'rifled', label: '线膛' },
-          { value: 'smoothbore', label: '滑膛' },
+          { value: 'smoothbore', label: '滑膛', disabled: !gates.smoothbore },
         ],
         () => g.rifling,
         (v) => (g.rifling = v as GunSpec['rifling']),
@@ -216,10 +226,10 @@ export function mountWeaponPanel(root: HTMLElement, opts: WeaponPanelOptions): {
         '装填',
         [
           { value: 'manual', label: '人工' },
-          { value: 'semi', label: '半自动' },
-          { value: 'bustle', label: '尾舱' },
-          { value: 'carousel', label: '转盘' },
-          { value: 'none', label: '无炮塔' },
+          { value: 'semi', label: '半自动', disabled: !gates.semi },
+          { value: 'bustle', label: '尾舱', disabled: !gates.bustle },
+          { value: 'carousel', label: '转盘', disabled: !gates.carousel },
+          { value: 'none', label: '无炮塔', disabled: !gates.turretless },
         ],
         () => g.loading,
         (v) => {
@@ -231,9 +241,9 @@ export function mountWeaponPanel(root: HTMLElement, opts: WeaponPanelOptions): {
       select(
         '供弹',
         [
-          { value: 'single', label: '单路' },
-          { value: 'ready', label: '待发弹' },
-          { value: 'dual', label: '双路' },
+          { value: 'single', label: '分装' },
+          { value: 'ready', label: '整装', disabled: !gates.ready },
+          { value: 'dual', label: '双路', disabled: !gates.dual },
         ],
         () => g.feed,
         (v) => (g.feed = v as GunSpec['feed']),
@@ -241,13 +251,13 @@ export function mountWeaponPanel(root: HTMLElement, opts: WeaponPanelOptions): {
       el(
         'div',
         { class: 'wpn-checks' },
-        checkbox('炮口制退器', () => g.muzzleBrake, (v) => (g.muzzleBrake = v)),
-        checkbox('热护套', () => g.thermalSleeve, (v) => (g.thermalSleeve = v)),
+        checkbox('炮口制退器', () => g.muzzleBrake, (v) => (g.muzzleBrake = v), !gates.muzzleBrake),
+        checkbox('热护套', () => g.thermalSleeve, (v) => (g.thermalSleeve = v), !gates.thermalSleeve),
       ),
       el(
         'p',
         { class: 'wpn-note' },
-        `当前科技上限：${g.family === 'howitzer' ? '榴弹炮' : '加农炮'}口径 ${caliberMax}mm · 身管 ${limits.barrelMax} 倍 · 装药 ${limits.chargeMax}`,
+        `当前科技上限：${g.family === 'howitzer' ? '榴弹炮' : '加农炮'}口径 ${caliberMax}mm · 身管 ${limits.barrelMax} 倍 · 装药 ${limits.chargeMax}。未解锁项已置灰，先到研发局点对应的炮闩/供弹/炮口/热护套科技。`,
       ),
     )
     return pane

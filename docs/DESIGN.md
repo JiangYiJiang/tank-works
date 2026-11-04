@@ -353,6 +353,7 @@ Vround = (π/4) × max(口径, 弹壳底径)² × (Lp + Lc) / 0.62
 - 炮塔备弹 0..总数，且不低于装填方式下限：
   - 尾舱 `ceil(total/2)`；人工 `ceil(total/3)`；转盘/无炮塔 `0`。
 - 膛压、口径、倍径、每弹装药同时受科技 `TechLimits` 约束；短管榴弹炮走 `howitzerCaliberMax`，不放开高初速加农炮。
+- 装填/供弹/膛线/炮口/热护套还有各自的科技闸门：`weaponTechGates()` 把 `mastered` 映射成可用项，设计局把未解锁项置灰，`designCheck()` 用同一张表拒绝。半自动炮闩、尾舱/转盘/无炮塔、整装/双路、滑膛、炮口制退器、热护套都不会在 1916 年出现可选。
 
 **弹药覆盖**：反装甲与软目标各带至少 3 发才算覆盖一类；`bonus = roles × 15 + min(10, floor(反装甲弹数/8))`，只加到自定义武器的适应性分；历史车不变。评分取四类弹里反装甲穿深最高的一种，不把四种相加。
 
@@ -1912,7 +1913,7 @@ npm run preview       # 预览打包结果
 npm run desktop:dev   # Vite + Electron 开发窗口
 npm run desktop:build # esbuild 打桌面壳（desktop-dist/）
 npm run desktop:pack  # 构建 + 桌面壳 + electron-builder 出 Windows 包（release/）
-npm run check         # 全部检查：类型 + 校准 + 节奏 + 16 个检查台（655 项断言）
+npm run check         # 全部检查：类型 + 校准 + 节奏 + 17 个检查台（666 项断言）
 
 npm run design        # 19 辆历史车校准表
 npm run ballistics    # 弹道两轴表
@@ -1925,6 +1926,7 @@ npm run metrics       # 设计局指标验收（抗破、装填、倒车、俯�
 npm run scale         # 经济尺度：8 个时代的毛利 / 工期 / 首单技术
 npm run economy       # 经济闭环验收（竞品、压价、贿赂、审计、交付、回款）
 npm run weapon        # 武器参数化验收（弹种唯一、备弹下限、体积/炮长、旧炮不变）
+npm run weapon:gates  # 武器科技闸门（1916 只有人工/分装；后期逐项解锁）
 
 npm run smoke:tank    # 设计局界面 45 项
 npm run smoke:game    # 游戏壳界面 115 项

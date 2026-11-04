@@ -24,7 +24,7 @@ import {
   type TechTier,
 } from '../data/tech'
 import { AUX_BY_ID, ARMOR_MATERIALS, AUXES, ENGINES, ENGINE_BY_ID, GUNS, GUN_BY_ID, HULLS, HULL_BY_ID, MATERIAL_BY_ID, SUSPENSION_BY_ID, SUSPENSIONS } from '../data/parts'
-import { ammoLabel, gunOfDesign, validateWeapon } from '../model/weapon'
+import { ammoLabel, gunOfDesign, validateWeapon, weaponTechGates } from '../model/weapon'
 import { dateOf } from './calendar'
 import { pushLog, type GameState, type ResearchState } from './state'
 import type { ShellType, TankDesign } from '../types'
@@ -268,8 +268,38 @@ export function designCheck(design: TankDesign, r: ResearchState): DesignCheck {
   for (const [ok, reason] of checks) if (!ok) return { ok: false, reason }
 
   if (customWeapon) {
-    const weaponCheck = validateWeapon(design.weapon!)
+    const weapon = design.weapon!
+    const weaponCheck = validateWeapon(weapon)
     if (!weaponCheck.ok) return weaponCheck
+    const gates = weaponTechGates(r.mastered)
+    const gunSpec = weapon.gun
+    if (gunSpec.family === 'howitzer' && !gates.howitzer) {
+      return { ok: false, reason: '榴弹炮还没解锁（先研发野战榴弹炮）' }
+    }
+    if (gunSpec.rifling === 'smoothbore' && !gates.smoothbore) {
+      return { ok: false, reason: '滑膛炮还没解锁（先研发滑膛炮）' }
+    }
+    if (gunSpec.loading === 'semi' && !gates.semi) {
+      return { ok: false, reason: '半自动炮闩还没解锁（先研发半自动炮闩）' }
+    }
+    if (
+      (gunSpec.loading === 'bustle' || gunSpec.loading === 'carousel' || gunSpec.loading === 'none') &&
+      !gates.bustle
+    ) {
+      return { ok: false, reason: '自动装填/无炮塔方案还没解锁（先研发自动装弹机）' }
+    }
+    if (gunSpec.feed === 'ready' && !gates.ready) {
+      return { ok: false, reason: '整装弹还没解锁（先研发整装弹）' }
+    }
+    if (gunSpec.feed === 'dual' && !gates.dual) {
+      return { ok: false, reason: '双路供弹还没解锁（先研发双路供弹）' }
+    }
+    if (gunSpec.muzzleBrake && !gates.muzzleBrake) {
+      return { ok: false, reason: '炮口制退器还没解锁（先研发炮口制退器）' }
+    }
+    if (gunSpec.thermalSleeve && !gates.thermalSleeve) {
+      return { ok: false, reason: '身管热护套还没解锁（先研发热护套）' }
+    }
   }
 
   const limits = techLimits(r)

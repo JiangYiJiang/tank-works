@@ -19,6 +19,52 @@ export const MAX_PROJECTILE_LENGTH = 7
 export const MIN_CHARGE = 0.2
 export const MAX_CHARGE = 1.5
 
+/** 武器选项的科技闸门；mastered 为空表示沙盒，全部开放。 */
+export interface WeaponTechGates {
+  howitzer: boolean
+  semi: boolean
+  bustle: boolean
+  carousel: boolean
+  turretless: boolean
+  ready: boolean
+  dual: boolean
+  smoothbore: boolean
+  muzzleBrake: boolean
+  thermalSleeve: boolean
+}
+
+export function weaponTechGates(mastered?: Readonly<Record<string, number>>): WeaponTechGates {
+  if (!mastered) {
+    return {
+      howitzer: true,
+      semi: true,
+      bustle: true,
+      carousel: true,
+      turretless: true,
+      ready: true,
+      dual: true,
+      smoothbore: true,
+      muzzleBrake: true,
+      thermalSleeve: true,
+    }
+  }
+  const level = (ladder: string): number => mastered[ladder] ?? 0
+  const loading = level('gun.loading')
+  const feed = level('gun.feed')
+  return {
+    howitzer: level('gun.howitzer') >= 1,
+    semi: loading >= 2,
+    bustle: loading >= 3,
+    carousel: loading >= 3,
+    turretless: loading >= 3,
+    ready: feed >= 2,
+    dual: feed >= 3,
+    smoothbore: level('gun.rifling') >= 2,
+    muzzleBrake: level('gun.muzzle') >= 2,
+    thermalSleeve: level('gun.thermal') >= 1,
+  }
+}
+
 export const AMMO_LABELS: Readonly<Record<ShellType, string>> = {
   ap: '穿甲弹',
   aphe: '半穿甲爆破弹',

@@ -105,6 +105,20 @@ check('旧设计仍用历史炮', gunOfDesign(legacyDesign).id === 'sa18')
 const legacyTank = buildTank(legacyDesign)
 check('旧设计评分不变', legacyTank.score.total === 382, String(legacyTank.score.total))
 
+const earlyGame = createGame(1)
+earlyGame.day = 500
+const semiWeapon: WeaponFit = {
+  ...legacy,
+  custom: true,
+  gun: { ...legacy.gun, loading: 'semi' },
+}
+const semiDesign: TankDesign = { ...legacyDesign, weapon: semiWeapon }
+const semiCheck = designCheck(semiDesign, earlyGame.research)
+check('1916 年半自动被设计检查拒绝', !semiCheck.ok && semiCheck.reason.includes('半自动'), semiCheck.reason)
+earlyGame.research.mastered['gun.loading'] = 2
+const semiLateCheck = designCheck(semiDesign, earlyGame.research)
+check('研发半自动炮闩后放行', semiLateCheck.ok, semiLateCheck.reason)
+
 const kvWeapon = weaponFromLegacyGun('m10t')
 kvWeapon.custom = true
 kvWeapon.ammo = [{ family: 'aphe', cartridge: 'separate', projectileLength: 4.5, charge: 0.55, count: 36 }]
