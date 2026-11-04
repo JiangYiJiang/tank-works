@@ -43,7 +43,7 @@ const cashOf = (root: HTMLElement): number => Number(txt(root, '.cash-value').re
 const mount = (store: ReturnType<typeof createMemoryStorage>, seed = 42): HTMLElement => {
   const root = doc.createElement('div') as unknown as HTMLElement
   doc.body.appendChild(root as never)
-  mountGame(root, { storage: store, seed: () => seed })
+  mountGame(root, { storage: store, seed: () => seed, founder: false })
   return root
 }
 
@@ -246,14 +246,14 @@ check('加线扣了 30 万', cashOf(root15) <= cash15 - 300_000, `${cash15} → 
 q(root15, '.chip-line')!.dispatchEvent(new win.Event('click') as unknown as Event)
 check('扩编后是 200 人', root15.textContent!.includes('200 人 × 1 班'), txt(root15, '.line-card'))
 
-// ── 2c. 游说：贿赂 / 压价 ────────────────────────────────
+// ── 2c. 贸易：贿赂 / 压价 ────────────────────────────────
 const store9 = createMemoryStorage()
 const root9 = mount(store9, 21)
 const cash9 = cashOf(root9)
 q(root9, '.chip-bribe')!.dispatchEvent(new win.Event('click') as unknown as Event)
 check('贿赂后现金变少', cashOf(root9) < cash9, `${cash9} → ${cashOf(root9)}`)
 check('贿赂写进日志', root9.textContent!.includes('贿赂'))
-check('信誉面板显示未消账', txt(root9, '.side').includes('未消账 1'), txt(root9, '.side'))
+check('信誉面板显示未消账', txt(root9, '.factory-panel').includes('未消账 1'), txt(root9, '.factory-panel'))
 
 const store10 = createMemoryStorage()
 const root10 = mount(store10, 23)

@@ -8,7 +8,7 @@
  *
  * 资金是「试算资金」：整个游戏的钱还没有统一重定尺度，
  * 所以这里先按一个够用的数给，避免玩家连一台虎王都造不起。
- * 等设计局、游说局都齐了再统一。
+ * 等设计局、贸易局都齐了再统一。
  */
 
 import { HISTORICAL } from '../data/historical'
@@ -65,7 +65,7 @@ const money = (n: number): string =>
   (n < 0 ? '−¥' : '¥') + Math.abs(Math.round(n)).toLocaleString('en-US')
 const tonnes = (kg: number): string => (kg / 1000).toFixed(kg >= 100_000 ? 0 : 1) + ' t'
 
-/** 占位交付价：边际成本（材料 + 工时费）× 1.35。等游说局接上就换成订单价。 */
+/** 占位交付价：边际成本（材料 + 工时费）× 1.35。等贸易局接上就换成订单价。 */
 function placeholderPrice(line: ProductionLine | undefined): number {
   if (!line) return 0
   const material = line.spec.unitKg * line.spec.yuanPerKg
@@ -162,7 +162,7 @@ export function mountManufacture(root: HTMLElement): void {
       day += step
       cursor += step
       if (t.produced > 0) {
-        // 占位回款：1.35 × 边际成本。真正的价格由游说局的订单决定。
+        // 占位回款：1.35 × 边际成本。真正的价格由贸易局的订单决定。
         const price = placeholderPrice(factory.lines[0])
         const income = Math.round(t.produced * price)
         cash += income
@@ -194,7 +194,7 @@ export function mountManufacture(root: HTMLElement): void {
   const title = h('div', 'mf-title')
   title.append(
     h('h1', undefined, '制造局'),
-    h('p', 'mf-sub', '一条线一种车。工时决定几天出一台，学习曲线让它越来越快。成品先入库，卖价等游说局。'),
+    h('p', 'mf-sub', '一条线一种车。工时决定几天出一台，学习曲线让它越来越快。成品先入库，卖价等贸易局。'),
   )
 
   const status = h('div', 'mf-status')

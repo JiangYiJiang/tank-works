@@ -28,6 +28,8 @@ import {
 } from '../sim/research'
 import { SLOT_UPGRADES, SPEED_UPGRADES, TECH_BY_ID } from '../data/tech'
 import { NATIONS, NATION_BY_ID } from '../data/nations'
+import { PLAYABLE_NATION_IDS, flagSvg, type PlayableNationId } from '../data/nation-profiles'
+import { worldAt, type WorldTank } from '../data/world'
 import { buildTank } from '../model/build'
 import { designYear } from '../model/era'
 import { daysPerUnit, inTransitKg, stockOf } from '../sim/factory'
@@ -44,6 +46,7 @@ import {
 } from '../sim/lines'
 import { materialFactorText } from '../sim/market'
 import { readAdopted, writeDraft, clearDraft } from '../../platform/design-handoff'
+import { COMPANY_KEY, COMPANY_NAME_MAX, readCompany, writeCompany, type Company } from '../../platform/company'
 import { LEGACY_SAVE_KEYS, SAVE_KEY } from '../../platform/save-keys'
 import { writeTech } from '../../platform/tech-handoff'
 import type { SaveStore } from '../../platform/storage'
@@ -57,6 +60,8 @@ type PauseReason = 'manual' | 'event' | 'contract' | 'research' | 'cash' | 'dead
 export interface GameOptions {
   storage: SaveStore
   seed?: () => number
+  /** 测试 / 截图时可以关掉首次建厂登记；正式入口默认开启。 */
+  founder?: boolean
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -98,6 +103,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   const dayParam = params.get('day')
   const forced =
     dayParam === null ? null : Math.max(0, Math.min(TOTAL_DAYS - 1, Math.floor(Number(dayParam)) || 0))
+  const viewParam = params.get('view')
   // 新游戏从国家选择页带 ?home=usa 进来；只影响新开局，不覆盖已有存档里的国家。
   const homeParam = params.get('home')
   const home = homeParam && NATION_BY_ID.has(homeParam as never) ? homeParam : 'fra'
@@ -109,6 +115,15 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   if (forced !== null && forced > 0) advanceDays(state, forced)
   // 老存档 / 新开局都可能没有标；没有在手订单就按当前时代补一批。
   refreshOffers(state)
+
+  let company: Company | null = readCompany(storage)
+  type DashboardView = 'home' | 'research' | 'manufacture' | 'trade'
+  let view: DashboardView = 'home'
+  let selectedCountry: PlayableNationId | null = null
+  let countrySig = ''
+  let companySig = ''
+  let founderOpen = false
+  let founderEditing = false
 
   let speed = 3
   let paused = false
@@ -223,39 +238,446 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   const threatWord = el('span', { class: 'threat-word' })
   const eraBlurb = el('p', { class: 'blurb' })
 
-  const sidebar = el(
-    'aside',
-    { class: 'side' },
+  const factoryPanel = el(
+    'section',
+    { class: 'panel factory-panel' },
+    el('h2', { text: '厂子' }),
+    el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '现金' }), cashValue),
+    el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '信誉' }), repValue),
+    el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '国家' }), homeSelect),
+    el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '债务' }), debtValue),
+    bankRow,
+    el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '剩余' }), leftValue),
+    el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '产品' }), productSelect),
+    productStats,
+    productHint,
+    designRow,
+    adoptRow,
+  )
+  const ordersPanel = el('section', { class: 'panel orders-panel' }, el('h2', { text: '订单' }), offersWrap, contractWrap)
+  const situationPanel = el(
+    'section',
+    { class: 'panel' },
+    el('h2', { text: '局势' }),
+    el('div', { class: 'bar-row' }, threatWrap, threatWord),
+    eraBlurb,
+  )
+
+  // ── 主界面：厂牌、四个局、世界态势、国家编制、事件记录 ─────────
+
+  const companyLogo = el('button', {
+    class: 'company-logo',
+    type: 'button',
+    'aria-label': '修改厂牌',
+  })
+  const companyName = el('h1', { class: 'company-name' })
+  const companyMeta = el('span', { class: 'company-meta' })
+  const companyEdit = el('button', { class: 'company-edit', type: 'button', text: '改名 / 换 logo' })
+  companyLogo.addEventListener('click', () => openFounder(true))
+  companyEdit.addEventListener('click', () => openFounder(true))
+  const companyBrand = el(
+    'div',
+    { class: 'company-brand' },
+    companyLogo,
     el(
-      'section',
-      { class: 'panel' },
-      el('h2', { text: '厂子' }),
-      el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '现金' }), cashValue),
-      el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '信誉' }), repValue),
-      el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '国家' }), homeSelect),
-      el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '债务' }), debtValue),
-      bankRow,
-      el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '剩余' }), leftValue),
-      el('div', { class: 'kv' }, el('span', { class: 'kv-key', text: '产品' }), productSelect),
-      productStats,
-      productHint,
-      designRow,
-      adoptRow,
+      'div',
+      { class: 'company-text' },
+      el('span', { class: 'company-kicker', text: 'YOUR WORKS / 本厂' }),
+      companyName,
+      companyMeta,
     ),
-    el('section', { class: 'panel' }, el('h2', { text: '订单' }), offersWrap, contractWrap),
-    linesPanel,
-    researchPanel,
+    companyEdit,
+  )
+
+  const dashCash = el('strong', { class: 'dash-value dash-cash' })
+  const dashRep = el('strong', { class: 'dash-value' })
+  const dashDebt = el('strong', { class: 'dash-value' })
+  const dashProduct = el('strong', { class: 'dash-value' })
+  const dashStat = (key: string, value: HTMLElement): HTMLElement =>
+    el('div', { class: 'dash-stat' }, el('span', { class: 'dash-key', text: key }), value)
+  const dashTop = el(
+    'div',
+    { class: 'dash-top' },
+    companyBrand,
+    el('div', { class: 'dash-stats' }, dashStat('现金', dashCash), dashStat('信誉', dashRep), dashStat('债务', dashDebt), dashStat('产品', dashProduct)),
+  )
+
+  const researchMeta = el('span', { class: 'bureau-meta' })
+  const designMeta = el('span', { class: 'bureau-meta' })
+  const manufactureMeta = el('span', { class: 'bureau-meta' })
+  const tradeMeta = el('span', { class: 'bureau-meta' })
+  const bureauCard = (
+    id: string,
+    index: string,
+    title: string,
+    en: string,
+    glyph: string,
+    meta: HTMLElement,
+    onOpen: () => void,
+  ): HTMLElement => {
+    const btn = el(
+      'button',
+      { class: `bureau-card bureau-${id}`, type: 'button', 'data-bureau': id },
+      el('span', { class: 'bureau-index', text: index }),
+      el('span', { class: 'bureau-glyph', text: glyph }),
+      el('span', { class: 'bureau-title', text: title }),
+      el('span', { class: 'bureau-en', text: en }),
+      meta,
+      el('span', { class: 'bureau-arrow', text: '→' }),
+    )
+    btn.addEventListener('click', onOpen)
+    return btn
+  }
+  const bureauGrid = el(
+    'div',
+    { class: 'bureau-grid' },
+    bureauCard('research', '01', '研发局', 'RESEARCH', 'R', researchMeta, () => setView('research')),
+    bureauCard('design', '02', '设计局', 'DESIGN', 'D', designMeta, openDesigner),
+    bureauCard('manufacture', '03', '制造局', 'MANUFACTURE', 'M', manufactureMeta, () => setView('manufacture')),
+    bureauCard('trade', '04', '贸易局', 'TRADE', 'T', tradeMeta, () => setView('trade')),
+  )
+
+  const countryList = el('div', { class: 'country-scroll' })
+  const countryColumn = el(
+    'aside',
+    { class: 'country-column' },
     el(
-      'section',
-      { class: 'panel' },
-      el('h2', { text: '局势' }),
-      el('div', { class: 'bar-row' }, threatWrap, threatWord),
-      eraBlurb,
+      'div',
+      { class: 'column-head' },
+      el('span', { class: 'column-kicker', text: 'ARMORED INVENTORY' }),
+      el('strong', { class: 'column-title', text: '国家编制' }),
+      el('span', { class: 'column-count', text: '9' }),
+    ),
+    countryList,
+    el('p', { class: 'column-foot', text: '数量与四维为占位估算，待接真实编制档案。' }),
+  )
+
+  const mapYear = el('strong', { class: 'map-year' })
+  const mapEra = el('span', { class: 'map-era' })
+  const mapPanel = el(
+    'section',
+    { class: 'map-column' },
+    el(
+      'div',
+      { class: 'map-head' },
+      el('div', { class: 'map-head-left' }, el('span', { class: 'column-kicker', text: 'WORLD THEATER' }), el('strong', { class: 'column-title', text: '世界态势' })),
+      el('div', { class: 'map-head-right' }, mapYear, mapEra),
+    ),
+    el(
+      'div',
+      { class: 'map-frame' },
+      el('div', { class: 'map-grid' }),
+      el('div', { class: 'map-scan' }),
+      el('span', { class: 'map-corner tl' }),
+      el('span', { class: 'map-corner tr' }),
+      el('span', { class: 'map-corner bl' }),
+      el('span', { class: 'map-corner br' }),
+      el(
+        'div',
+        { class: 'map-center' },
+        el('span', { class: 'map-center-kicker', text: 'STRATEGIC MAP / OFFLINE' }),
+        el('strong', { class: 'map-center-title', text: '动态世界地图' }),
+        el('span', { class: 'map-center-note', text: '国界轮廓 / 阵营色块 / 战线推移' }),
+        el('span', { class: 'map-center-tag', text: '位置已预留 · 地图逻辑后续接入' }),
+      ),
+      el('span', { class: 'map-coord', text: 'LAT 35°N · LON 20°E · GRID 24' }),
+    ),
+    el(
+      'div',
+      { class: 'map-legend' },
+      el('span', { class: 'legend-title', text: '图例' }),
+      el('span', { class: 'legend-item' }, el('i', { class: 'legend-dot amber' }), '同盟'),
+      el('span', { class: 'legend-item' }, el('i', { class: 'legend-dot red' }), '轴心'),
+      el('span', { class: 'legend-item' }, el('i', { class: 'legend-dot cyan' }), '中立'),
+      el('span', { class: 'legend-note', text: '待历史节点驱动' }),
     ),
   )
 
-  const feedList = el('ol', { class: 'feed-list' })
-  const feed = el('section', { class: 'feed' }, el('h2', { text: '日志' }), feedList)
+  const eventCount = el('span', { class: 'column-count' })
+  const feedList = el('ol', { class: 'feed-list event-list' })
+  const eventColumn = el(
+    'aside',
+    { class: 'event-column' },
+    el(
+      'div',
+      { class: 'column-head' },
+      el('span', { class: 'column-kicker', text: 'FIELD LOG' }),
+      el('strong', { class: 'column-title', text: '事件记录' }),
+      eventCount,
+    ),
+    el(
+      'div',
+      { class: 'event-legend' },
+      el('span', { class: 'event-key' }, el('i', { class: 'legend-dot amber' }), '历史大事件'),
+      el('span', { class: 'event-key' }, el('i', { class: 'legend-dot pale' }), '厂内事件'),
+    ),
+    feedList,
+  )
+
+  const dashboard = el(
+    'section',
+    { class: 'dashboard' },
+    dashTop,
+    bureauGrid,
+    el('div', { class: 'dashboard-grid' }, countryColumn, mapPanel, eventColumn),
+  )
+
+  function bureauPage(id: string, title: string, en: string, sub: string, ...content: Node[]): HTMLElement {
+    const back = el('button', { class: 'bureau-back', type: 'button', text: '← 返回主界面' })
+    back.addEventListener('click', () => setView('home'))
+    return el(
+      'section',
+      { class: `bureau-page bureau-page-${id} hidden`, 'data-view': id },
+      el(
+        'div',
+        { class: 'bureau-head' },
+        back,
+        el(
+          'div',
+          { class: 'bureau-head-text' },
+          el('span', { class: 'bureau-en', text: en }),
+          el('h1', { text: title }),
+          el('p', { text: sub }),
+        ),
+        el('span', { class: 'bureau-head-index', text: id === 'research' ? '01' : id === 'manufacture' ? '03' : '04' }),
+      ),
+      el('div', { class: 'bureau-body' }, ...content),
+    )
+  }
+
+  function bureauAside(kicker: string, title: string, body: string, lines: readonly string[]): HTMLElement {
+    return el(
+      'aside',
+      { class: 'bureau-aside' },
+      el('span', { class: 'bureau-aside-kicker', text: kicker }),
+      el('h3', { text: title }),
+      el('p', { class: 'bureau-aside-body', text: body }),
+      el('ul', { class: 'bureau-aside-list' }, ...lines.map((line) => el('li', { text: line }))),
+    )
+  }
+
+  const researchPage = bureauPage(
+    'research',
+    '研发局',
+    'RESEARCH BUREAU',
+    '把时间换成技术。项目在跑的时候，槽位才收月维持费。',
+    el(
+      'div',
+      { class: 'bureau-with-aside' },
+      researchPanel,
+      bureauAside('RESEARCH NOTES', '研究纪律', '技术是唯一会自己长大的资产，但它只在你付钱的时候长大。', [
+        '项目在跑才收槽位月维持费；空槽不扣。',
+        '超前研究更贵，落后研究有折扣。',
+        '先补材料与火炮，再碰超前项目。',
+      ]),
+    ),
+  )
+  const manufacturePage = bureauPage(
+    'manufacture',
+    '制造局',
+    'MANUFACTURE BUREAU',
+    '产品、产线、人力与料价。接单之后，这里决定几天出一台车。',
+    el('div', { class: 'bureau-grid-inner' }, factoryPanel, el('div', { class: 'bureau-stack' }, linesPanel, situationPanel)),
+  )
+  const tradePage = bureauPage(
+    'trade',
+    '贸易局',
+    'TRADE BUREAU',
+    '招标、竞品、压价、贿赂与回款。订单不是等来的，是抢来的。',
+    el(
+      'div',
+      { class: 'bureau-with-aside' },
+      ordersPanel,
+      bureauAside('TRADE NOTES', '成交纪律', '标只按指标验收，不看车名。你的车够不够格，数字说了算。', [
+        '竞品会逐年成长、换届发车，每标都竞价。',
+        '压价需要分数优势；贿赂付合同额 8%。',
+        '信誉影响报价与授信；未消账会被年度审计。',
+      ]),
+    ),
+  )
+
+  const pageHost = el('div', { class: 'page-host' }, dashboard, researchPage, manufacturePage, tradePage)
+  const stage = el('main', { class: 'stage' }, pageHost)
+
+  // ── 首次建厂登记：厂名 + 白板手绘 logo ─────────────────────
+
+  const founderName = el('input', {
+    class: 'founder-name',
+    type: 'text',
+    maxlength: String(COMPANY_NAME_MAX),
+    placeholder: '例如：江北机车厂',
+    autocomplete: 'off',
+    spellcheck: 'false',
+  })
+  const founderPad = el('canvas', { class: 'founder-pad', width: '560', height: '260' })
+  const founderHint = el('p', { class: 'founder-hint', text: '名字必填；logo 可以稍后再补。' })
+  const founderClear = el('button', { class: 'founder-tool', type: 'button', text: '清空白板' })
+  const founderCancel = el('button', { class: 'founder-cancel', type: 'button', text: '取消' })
+  const founderSubmit = el('button', { class: 'founder-submit', type: 'button', text: '完成，开工' })
+  const founderOverlay = el(
+    'div',
+    { class: 'founder-overlay' },
+    el(
+      'div',
+      { class: 'founder-card' },
+      el(
+        'div',
+        { class: 'founder-head' },
+        el('span', { class: 'founder-kicker', text: 'FOUNDING PAPERS / 建厂登记' }),
+        el('h2', { text: '给你的坦克厂起个名字' }),
+        el('p', { text: '这块牌子会挂在主界面左上角。logo 用白板手绘，画歪了也算你的。' }),
+      ),
+      el(
+        'div',
+        { class: 'founder-grid' },
+        el(
+          'label',
+          { class: 'founder-field' },
+          el('span', { class: 'founder-label', text: '厂名' }),
+          founderName,
+        ),
+        el(
+          'div',
+          { class: 'founder-pad-wrap' },
+          el('div', { class: 'founder-pad-head' }, el('span', { class: 'founder-label', text: '手绘 logo' }), founderClear),
+          founderPad,
+          el('span', { class: 'founder-pad-note', text: '白板 · 直接画' }),
+        ),
+      ),
+      founderHint,
+      el('div', { class: 'founder-actions' }, founderCancel, founderSubmit),
+    ),
+  )
+
+  let founderCtx: CanvasRenderingContext2D | null = null
+  let founderDirty = false
+  let founderDrawing = false
+  let lastX = 0
+  let lastY = 0
+
+  function paintPad(): void {
+    if (!founderCtx) return
+    founderCtx.fillStyle = '#f3f0e7'
+    founderCtx.fillRect(0, 0, founderPad.width, founderPad.height)
+    founderDirty = false
+  }
+
+  try {
+    founderCtx = founderPad.getContext('2d')
+  } catch {
+    founderCtx = null
+  }
+  if (founderCtx) {
+    paintPad()
+    founderCtx.lineWidth = 6
+    founderCtx.lineCap = 'round'
+    founderCtx.lineJoin = 'round'
+    founderCtx.strokeStyle = '#15181d'
+    const point = (e: PointerEvent): [number, number] => {
+      const r = founderPad.getBoundingClientRect()
+      const x = ((e.clientX - r.left) / Math.max(1, r.width)) * founderPad.width
+      const y = ((e.clientY - r.top) / Math.max(1, r.height)) * founderPad.height
+      return [x, y]
+    }
+    founderPad.addEventListener('pointerdown', (e) => {
+      if (!founderCtx) return
+      e.preventDefault()
+      founderDrawing = true
+      founderDirty = true
+      const [x, y] = point(e)
+      lastX = x
+      lastY = y
+      founderCtx.beginPath()
+      founderCtx.moveTo(x, y)
+      founderCtx.lineTo(x + 0.1, y + 0.1)
+      founderCtx.stroke()
+      try {
+        founderPad.setPointerCapture(e.pointerId)
+      } catch {
+        /* 某些环境没有指针捕获 */
+      }
+    })
+    founderPad.addEventListener('pointermove', (e) => {
+      if (!founderDrawing || !founderCtx) return
+      e.preventDefault()
+      const [x, y] = point(e)
+      founderCtx.beginPath()
+      founderCtx.moveTo(lastX, lastY)
+      founderCtx.lineTo(x, y)
+      founderCtx.stroke()
+      lastX = x
+      lastY = y
+    })
+    const stop = (): void => {
+      founderDrawing = false
+    }
+    founderPad.addEventListener('pointerup', stop)
+    founderPad.addEventListener('pointerleave', stop)
+    founderPad.addEventListener('pointercancel', stop)
+  } else {
+    founderPad.classList.add('no-canvas')
+    founderHint.textContent = '这个浏览器不支持白板手绘；先起名字，logo 可以以后再补。'
+  }
+
+  founderClear.addEventListener('click', () => {
+    if (!founderCtx) return
+    paintPad()
+    founderHint.textContent = founderEditing ? '白板已清空；不画的话保留原 logo。' : '白板已清空。'
+  })
+
+  founderName.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') founderSubmit.click()
+  })
+
+  function closeFounder(): void {
+    founderOpen = false
+    founderOverlay.classList.remove('show')
+  }
+
+  function openFounder(editing: boolean): void {
+    if (state.over) return
+    founderEditing = editing
+    founderOpen = true
+    founderName.value = company?.name ?? ''
+    founderCancel.hidden = !editing
+    founderHint.textContent = editing
+      ? '改名或重画 logo；不画的话保留原来的 logo。'
+      : '名字必填；logo 可以稍后再补。'
+    if (founderCtx) paintPad()
+    founderOverlay.classList.add('show')
+    window.setTimeout(() => founderName.focus(), 30)
+  }
+
+  founderSubmit.addEventListener('click', () => {
+    const name = founderName.value.trim()
+    if (!name) {
+      founderHint.textContent = '先给厂子起个名字，哪怕叫「无名坦克厂」。'
+      founderName.focus()
+      return
+    }
+    const logo = founderDirty && founderCtx ? founderPad.toDataURL('image/png') : (company?.logo ?? '')
+    const next: Company = { name: name.slice(0, COMPANY_NAME_MAX), logo }
+    if (!writeCompany(storage, next)) {
+      founderHint.textContent = '浏览器不允许写本地存储，厂牌存不下来。'
+      return
+    }
+    company = next
+    founderDirty = false
+    companySig = ''
+    closeFounder()
+    renderCompany()
+    render()
+  })
+
+  founderCancel.addEventListener('click', () => {
+    if (founderEditing) closeFounder()
+  })
+  founderOverlay.addEventListener('click', (e) => {
+    if (e.target === founderOverlay && founderEditing) closeFounder()
+  })
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && founderOpen && founderEditing) closeFounder()
+  })
 
   const flash = el('div', { class: 'flash' })
   const banner = el('div', { class: 'banner' })
@@ -303,14 +725,150 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
       topbar,
       timeline,
       banner,
-      el('main', { class: 'body' }, sidebar, feed),
+      stage,
       flash,
       pausedTag,
+      founderOverlay,
       endOverlay,
     ),
   )
 
   // ── 交互 ─────────────────────────────────────────────────
+
+  function setView(next: DashboardView): void {
+    view = next
+    dashboard.classList.toggle('hidden', view !== 'home')
+    researchPage.classList.toggle('hidden', view !== 'research')
+    manufacturePage.classList.toggle('hidden', view !== 'manufacture')
+    tradePage.classList.toggle('hidden', view !== 'trade')
+    if (view === 'home') renderDashboard()
+  }
+
+  function renderCompany(): void {
+    const name = company?.name || '未命名坦克厂'
+    const sig = `${name}:${company?.logo.length ?? 0}`
+    if (sig === companySig) return
+    companySig = sig
+    companyName.textContent = name
+    const nation = NATIONS.find((n) => n.id === state.home)?.name ?? state.home
+    companyMeta.textContent = `${nation} · ${company ? (company.logo ? '手绘厂牌' : '厂牌已登记') : '等待建厂登记'}`
+    companyLogo.replaceChildren()
+    if (company?.logo) {
+      const img = el('img', { class: 'company-logo-img', src: company.logo, alt: '' })
+      companyLogo.append(img)
+    } else {
+      companyLogo.append(el('span', { class: 'company-logo-fallback', text: Array.from(name)[0] ?? '?' }))
+    }
+    companyLogo.classList.toggle('has-logo', Boolean(company?.logo))
+  }
+
+  function countryCard(id: PlayableNationId, total: number, tanks: WorldTank[], year: number): HTMLElement {
+    const nation = NATION_BY_ID.get(id)
+    const flag = el('span', { class: 'country-flag' })
+    flag.innerHTML = flagSvg(id)
+    const expanded = selectedCountry === id
+    const card = el(
+      'button',
+      {
+        class: `country-card${expanded ? ' open' : ''}`,
+        type: 'button',
+        'data-country': id,
+        'aria-expanded': expanded ? 'true' : 'false',
+      },
+      flag,
+      el(
+        'span',
+        { class: 'country-main' },
+        el('span', { class: 'country-name', text: nation?.name ?? id }),
+        el('span', { class: 'country-en', text: nation?.id.toUpperCase() ?? id.toUpperCase() }),
+      ),
+      el(
+        'span',
+        { class: 'country-total' },
+        el('strong', { text: num(total) }),
+        el('em', { text: '台' }),
+      ),
+    )
+    card.addEventListener('click', () => {
+      selectedCountry = selectedCountry === id ? null : id
+      countrySig = ''
+      renderCountries()
+    })
+
+    const item = el('div', { class: `country-item${expanded ? ' open' : ''}` }, card)
+    if (!expanded) return item
+
+    const detail = el(
+      'div',
+      { class: 'country-detail' },
+      el('div', { class: 'country-detail-head' }, el('span', { text: `现役编制 · ${year}` }), el('span', { text: `${tanks.length} 型` })),
+    )
+    if (tanks.length === 0) {
+      detail.append(el('p', { class: 'country-empty', text: '尚未列装坦克。' }))
+    } else {
+      for (const t of tanks) {
+        detail.append(
+          el(
+            'div',
+            { class: 'tank-row' },
+            el(
+              'div',
+              { class: 'tank-row-top' },
+              el('span', { class: 'tank-name' }, t.name, t.estimated ? el('i', { class: 'tank-est', text: '估' }) : ''),
+              el('span', { class: 'tank-qty', text: `× ${num(t.qty)}` }),
+            ),
+            el(
+              'div',
+              { class: 'tank-dims' },
+              el('span', {}, '装 ', el('b', { text: num(t.armor) })),
+              el('span', {}, '火 ', el('b', { text: num(t.pen) })),
+              el('span', {}, '机 ', el('b', { text: num(t.offroad) })),
+              el('span', {}, '适 ', el('b', { text: num(t.adapt) })),
+              el('span', { class: 'tank-score' }, '总分 ', el('b', { text: num(t.total) })),
+            ),
+          ),
+        )
+      }
+    }
+    item.append(detail)
+    return item
+  }
+
+  function renderCountries(): void {
+    const year = dateOf(state.day).year
+    const sig = `${year}:${selectedCountry ?? ''}`
+    if (sig === countrySig) return
+    countrySig = sig
+    countryList.replaceChildren()
+    for (const id of PLAYABLE_NATION_IDS) {
+      const inv = worldAt(id, year)
+      countryList.append(countryCard(id, inv.total, inv.tanks, year))
+    }
+  }
+
+  function renderDashboard(): void {
+    renderCompany()
+    dashCash.textContent = money(state.cash)
+    dashRep.textContent = `${state.rep} / 100`
+    dashDebt.textContent = state.debt > 0 ? money(state.debt) : '无'
+    dashProduct.textContent = state.design.name
+
+    const projects = state.research.projects.length
+    researchMeta.textContent = `${projects} 项在研 · ${slotsOf(state.research)} 槽`
+    try {
+      designMeta.textContent = `${state.design.name} · ${buildTank(state.design).score.total} 分`
+    } catch {
+      designMeta.textContent = state.design.name
+    }
+    const lines = state.factory?.lines.length ?? 0
+    manufactureMeta.textContent = `${lines} 条产线 · 累计 ${num(state.stats.produced)} 台`
+    tradeMeta.textContent = `${state.offers.length} 份标 · ${state.contract ? '在手 1 单' : '空闲'}`
+
+    mapYear.textContent = String(dateOf(state.day).year)
+    mapEra.textContent = ERAS[state.era]?.name ?? ''
+    eventCount.textContent = `${state.log.length} 条`
+    renderCountries()
+  }
 
   function setSpeed(s: number): void {
     speed = s
@@ -1041,6 +1599,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
                 : '已暂停'
     pausedTag.classList.toggle('show', paused && !state.over)
 
+    renderDashboard()
     renderProduct()
     renderOrders()
     renderLines()
@@ -1096,7 +1655,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     if (!(dt > 0)) dt = 0
     if (dt > 0.25) dt = 0.25
 
-    if (!paused && !state.over) {
+    if (!paused && !state.over && !founderOpen) {
       acc += dt * speed
       if (acc >= 1) {
         const days = Math.floor(acc)
@@ -1158,6 +1717,8 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
 
   render()
   publishTech()
+  if (!company && opts.founder !== false) openFounder(false)
+  if (viewParam === 'research' || viewParam === 'manufacture' || viewParam === 'trade') setView(viewParam)
   if (new URLSearchParams(location.search).get('design') === '1') window.setTimeout(openDesigner, 80)
   requestAnimationFrame(rafLoop)
 

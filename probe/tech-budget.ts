@@ -311,7 +311,7 @@ const lazy = results[POLICIES.findIndex((p) => p.from !== undefined)]!
 console.log(`\n⚠ 躺平三十年（1945 才开工）：仍然拿到 ${lazy.done.size} 条，只比满配少 ${full.done.size - lazy.done.size} 条。`)
 console.log('  单看研发，前 30 年躺平几乎不亏 —— 因为 1945 年之后的产能本身就接近整棵树的工作量，')
 console.log('  再加上追赶系数，欠的课补得回来。真正的闸门必须是现金流：')
-console.log('  30 年拿不出能卖的车 = 没有订单 = 早就破产。等制造局和游说局接上再复核这一条。')
+console.log('  30 年拿不出能卖的车 = 没有订单 = 早就破产。等制造局和贸易局接上再复核这一条。')
 
 // ── 满配还有什么是没拿到的 ───────────────────────────────────
 
@@ -362,7 +362,7 @@ console.log(`· 想追平满配（${full.done.size} 条），最少要 ${minSlot
 console.log(`· 单槽纯手工（节俭）能完成 ${results[0]!.done.size} 条，占 ${((results[0]!.done.size / TECH.length) * 100).toFixed(0)}%`)
 console.log(`· 槽位和速度不能互相替代：只加槽完成 ${results[1]!.done.size} 条，只提速完成 ${results[2]!.done.size} 条`)
 console.log('\n待办：钱。上面的支出是「假设买得起」算出来的，真实的闸门在现金流，')
-console.log('      等制造局和游说局接上之后，用同一张表核对「3 槽全开 = 多少台坦克的利润」。')
+console.log('      等制造局和贸易局接上之后，用同一张表核对「3 槽全开 = 多少台坦克的利润」。')
 
 // ── 节奏的回归门限 ───────────────────────────────────────────
 

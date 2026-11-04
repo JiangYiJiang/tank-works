@@ -207,7 +207,8 @@ export function createGame(seed: number, home = 'fra'): GameState {
     debt: 0,
     stats: createStats(),
   }
-  pushLog(state, { d: 0, k: 'note', t: `开工。${ERAS[state.era]!.blurb}` })
+  pushLog(state, { d: 0, k: 'era', t: `${ERAS[state.era]!.name} · ${ERAS[state.era]!.blurb}` })
+  pushLog(state, { d: 0, k: 'note', t: '开工。机器是二手的，账本是新的。' })
   pushLog(state, { d: 0, k: 'note', t: '厂里只有一条产线、一份刚开张的名声 —— 先看订单。' })
   return state
 }

@@ -13,4 +13,9 @@ export const LEGACY_SAVE_KEYS = [
 export const ALL_SAVE_KEYS = [SAVE_KEY, ...LEGACY_SAVE_KEYS] as const
 
 /** 主菜单「新游戏」时要一起清掉的东西。 */
-export const RUN_KEYS = [...ALL_SAVE_KEYS, 'tank-works.tech.v1', 'tank-works.design.v1'] as const
+export const RUN_KEYS = [
+  ...ALL_SAVE_KEYS,
+  'tank-works.tech.v1',
+  'tank-works.design.v1',
+  'tank-works.company.v1',
+] as const
