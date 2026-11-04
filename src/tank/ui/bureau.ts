@@ -128,7 +128,7 @@ export function mountBureau(root: HTMLElement, opts: BureauOptions = {}): void {
   const embedded = new URLSearchParams(location.search).get('embedded') === '1'
   /** 主循环发布的科技快照；没有就是沙盒模式（全部零件可选）。 */
   const tech = readTech()
-  const techState = tech ? { mastered: tech.mastered, projects: [], upgrades: [] } : null
+  const techState = tech ? { mastered: tech.mastered, projects: [], slots: [{ level: 1, job: null }], build: null, upgrades: [] } : null
   const allowed = tech?.parts
 
   const hulls = allowed ? HULLS.filter((h) => allowed.hull.includes(h.id)) : HULLS

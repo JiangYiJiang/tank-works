@@ -89,6 +89,8 @@ export interface ActiveContract extends Offer {
 export interface ResearchProject {
   ladder: string
   tier: number
+  /** 占用的科研槽下标；旧存档可缺省 */
+  slot?: number
   /** 需要的槽月（已乘超前 / 追赶系数） */
   months: number
   /** 已经投入的槽月 */
@@ -97,11 +99,38 @@ export interface ResearchProject {
   cost: number
 }
 
+/** 科研槽正在做的升级。 */
+export interface SlotUpgradeJob {
+  kind: 'upgrade'
+  targetLevel: number
+  /** 需要几个月 */
+  months: number
+  progress: number
+  cost: number
+}
+
+export interface ResearchSlotState {
+  level: number
+  job: SlotUpgradeJob | null
+}
+
+/** 正在建造的下一座科研槽。 */
+export interface SlotBuildJob {
+  target: number
+  months: number
+  progress: number
+  cost: number
+}
+
 export interface ResearchState {
   /** ladder → 已掌握的最高 tier；0 / 缺省表示还没开始 */
   mastered: Record<string, number>
   projects: ResearchProject[]
-  /** 已买的升级，id 形如 `slot-1934` / `speed-1958` */
+  /** 已打开的科研槽；第 1 个开局就有 */
+  slots: ResearchSlotState[]
+  /** 正在解锁下一槽 */
+  build: SlotBuildJob | null
+  /** 旧的即时升级（1934/1955…），保留兼容旧存档 */
   upgrades: string[]
 }
 
@@ -177,7 +206,13 @@ export function startingMastered(): Record<string, number> {
 }
 
 export function createResearch(): ResearchState {
-  return { mastered: startingMastered(), projects: [], upgrades: [] }
+  return {
+    mastered: startingMastered(),
+    projects: [],
+    slots: [{ level: 1, job: null }],
+    build: null,
+    upgrades: [],
+  }
 }
 
 /** 开局车：FT-17。返回一份深拷贝，避免玩家改设计时污染历史 fixture。 */

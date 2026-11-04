@@ -26,7 +26,9 @@ import {
   type LogKind,
   type Offer,
   type ResearchProject,
+  type ResearchSlotState,
   type ResearchState,
+  type SlotBuildJob,
   type Stats,
 } from './state'
 import type { FactoryState, LineState, ProductionLine, PurchaseOrder } from './factory'
@@ -284,6 +286,55 @@ function coerceResearch(raw: unknown): ResearchState {
     }
   }
 
+  const upgrades: string[] = []
+  if (Array.isArray(o.upgrades)) {
+    for (const rawId of o.upgrades) {
+      if (typeof rawId !== 'string') continue
+      if (upgradeById(rawId) && !upgrades.includes(rawId)) upgrades.push(rawId)
+    }
+  }
+
+  const slots: ResearchSlotState[] = []
+  if (Array.isArray(o.slots)) {
+    for (const rawSlot of o.slots) {
+      if (slots.length >= 6) break
+      const slot = obj(rawSlot)
+      if (!slot) continue
+      const level = Math.round(clamp(slot.level, 1, 4, 1))
+      const rawJob = obj(slot.job)
+      const targetLevel = Math.round(clamp(rawJob?.targetLevel, level + 1, 4, level + 1))
+      const job =
+        rawJob && targetLevel > level
+          ? {
+              kind: 'upgrade' as const,
+              targetLevel,
+              months: clamp(rawJob.months, 0.05, 240, 6),
+              progress: clamp(rawJob.progress, 0, 240, 0),
+              cost: clamp(rawJob.cost, 0, 1e12, 0),
+            }
+          : null
+      slots.push({ level, job })
+    }
+  }
+  if (slots.length === 0) {
+    const legacySlots = upgrades.filter((id) => id.startsWith('slot-')).length
+    for (let i = 0; i < 1 + legacySlots && i < 6; i++) slots.push({ level: 1, job: null })
+  }
+
+  let build: SlotBuildJob | null = null
+  const rawBuild = obj(o.build)
+  if (rawBuild) {
+    const target = Math.round(clamp(rawBuild.target, slots.length + 1, 6, slots.length + 1))
+    if (target <= 6) {
+      build = {
+        target,
+        months: clamp(rawBuild.months, 0.05, 240, 6),
+        progress: clamp(rawBuild.progress, 0, 240, 0),
+        cost: clamp(rawBuild.cost, 0, 1e12, 0),
+      }
+    }
+  }
+
   const projects: ResearchProject[] = []
   if (Array.isArray(o.projects)) {
     for (const rawProject of o.projects) {
@@ -294,6 +345,7 @@ function coerceResearch(raw: unknown): ResearchState {
       projects.push({
         ladder: p.ladder.slice(0, 40),
         tier,
+        slot: Math.round(clamp(p.slot, 0, slots.length - 1, 0)),
         months: clamp(p.months, 0.05, 10_000, 0.05),
         progress: clamp(p.progress, 0, 10_000, 0),
         cost: clamp(p.cost, 0, 1e12, 0),
@@ -301,15 +353,7 @@ function coerceResearch(raw: unknown): ResearchState {
     }
   }
 
-  const upgrades: string[] = []
-  if (Array.isArray(o.upgrades)) {
-    for (const rawId of o.upgrades) {
-      if (typeof rawId !== 'string') continue
-      if (upgradeById(rawId) && !upgrades.includes(rawId)) upgrades.push(rawId)
-    }
-  }
-
-  return { mastered, projects, upgrades }
+  return { mastered, projects, slots, build, upgrades }
 }
 
 function coerceStats(raw: unknown): Stats {

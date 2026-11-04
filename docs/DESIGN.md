@@ -33,8 +33,8 @@
   └──────────────── 钱 ────────────────────┘
 ```
 
-M1 已经把这条件跑通了一半：**设计局的产品 → 制造局产线 → 贸易局的订单 → 现金**。
-研发局仍然只是「看板」，还没有把技术状态接进产品。
+M1 已经把这条件跑通：**研发局的技术 → 设计局的零件闸门 → 制造局产线 → 贸易局的订单 → 现金**。
+研发局现在有独立的科研槽、科技树和前置关系，研发结果会直接改变设计局能选的零件与性能系数。
 
 | 环节 | 玩家在做什么 | 产出 |
 |---|---|---|
@@ -203,7 +203,7 @@ M1 已经把这条件跑通了一半：**设计局的产品 → 制造局产线 
 
 ### 3.5 第一天：一次具体的开局（M1 已能玩到「接单」）
 
-> 这一段描述的是**目标体验**。招标、接单、排产、交付、回款已经能玩；研发局仍是看板，技术还没有接进产品。
+> 这一段描述的是**目标体验**。招标、接单、排产、交付、回款、研发都已接进主循环；研发局已有科研槽与科技树，技术快照会过滤设计局零件。
 
 **1915 年 1 月 1 日。现金 ¥2,000,000。一个科研槽。**
 
@@ -840,7 +840,7 @@ effortFor(months, cost, techYear, currentYear) → { months, cost, mult }
 
 ### 7.6 科研局本身
 
-**槽位升级**（买了就永久生效，但每月要交维护费）：
+**槽位升级**（下表是旧的节奏模型，仍用于槽月预算；游戏内 v0.8 已改成 6 个独立科研槽 + 每槽 4 级，见 §7.12）：
 
 | 年份 | 名称 | 一次性 | 月维护 | 累计槽位 |
 |---|---|---|---|---|
@@ -958,17 +958,19 @@ effortFor(months, cost, techYear, currentYear) → { months, cost, mult }
 
 游戏里真正在跑的研发见 §7.12。
 
-### 7.12 游戏里的研发（v0.7）
+### 7.12 游戏里的研发（v0.8）
 
-状态：`research.mastered: Record<ladder, tier>`，开局 = `STARTING_TECH` 每条梯子的最高代。
+状态：`research.mastered: Record<ladder, tier>`，开局 = `STARTING_TECH` 每条梯子的最高代；另有 `slots: ResearchSlotState[]`、`build: SlotBuildJob | null`。
 
-- **在研项目**：一条梯子同时只能有一个；项目占一个科研槽。开工付研发费，之后每天推 `days / 30.44 × 速度 × 时代强度` 个槽月，完成时 `mastered` 前进一代。
-- **槽位 / 速度**：用 `SLOT_UPGRADES` / `SPEED_UPGRADES`，一次性建设费 + 每月维持费。M1 简化：只在有在研项目时扣维持费。
+- **科研槽**：开局 1 个，最多 6 个。每个槽有 `level`（1–4）与可选的 `job`（升级任务）；槽速 `1.15^(level-1)`。解锁下一槽要一次性费用 + 工期，建造不占已有槽；升级期间该槽不能开工，升级完成后槽速提高。
+- **在研项目**：一条梯子同时只能有一个；项目占一个空闲科研槽（`project.slot`）。开工付研发费，之后每天推 `days / 30.44 × 槽速 × 时代强度` 个槽月，完成时 `mastered` 前进一代。
+- **占位经济**：解锁费用 `120k + 80k × (target-2)`、工期 `8 + 2 × (target-2)` 月；升级费用 `90k + 40k × (level-1)`、工期 `6 + 2 × (level-1)` 月；每级月维持 `¥2,500`。这些是占位值，等经济系统统一设计后再校准。维护费只在有在研项目时扣（M1 简化）。
+- **科技树界面**：`game/research-view.ts` 负责左槽位、右科技树。树按 7 个板块 / 65 条泳道 / 159 项科技铺开，横轴 1912–2020，顶部时间刻度，当前年份一条竖线；卡片状态 done / researching / open / locked，超前与追赶用 `effortMult` 徽标；前置用 SVG 连线；点卡片弹窗显示介绍、前置、基础工期、时间修正、槽速、时代强度、预计月数与完成日期、费用。
 - **零件闸门**：每个板块 `boardYear = max(该板块已掌握代的 year, 1915)`；零件 `era ≤ boardYear + 2` 才能用。
 - **性能闸门**：倾角默认 20°、口径 57mm、倍径 30、装药 0.60、pike；由 `designCheck()` 统一判断，`acceptOffer()` 兜底。
 - **数据修正**：`ammo.pen.1` 补 10 月 / ¥90k，前置接到 `ammo.apcr.1` —— 否则这条梯子永远开不了工。
 
-**还没做**：无（15 个 `fn` 键全部接线）。
+**还没做**：槽位经济数值仍是占位；项目不能中途取消/退款；科技树暂不支持缩放/折叠。
 
 **科技对模型的覆盖**（`model/mods.ts`）：`buildTank(design, tech)` 接受一份 `TechMods`，只作用于玩家车：
 
@@ -1126,7 +1128,7 @@ M1 与制造局原模型的差异：
 
 **M1 简化（已替换）**：空档期不计维持费；换型即时且免费；只有一条线。竞品、压价、贿赂、信誉、贷款、结算总表都已经接上（§9.8 / §9.9）。
 
-**验证**：`npm run economy` → 96 项；`npm run smoke:game` → 104 项。
+**验证**：`npm run economy` → 96 项；`npm run smoke:game` → 107 项。
 
 ### 8.9 设计局 → 主循环（M2）
 
@@ -1625,7 +1627,7 @@ tank-works/
 │  │  │  ├─ calendar.ts  state.ts  advance.ts  save.ts
 │  │  │  ├─ factory.ts       产线、仓库、学习曲线
 │  │  │  ├─ contract.ts      招标、接单、交付、经济结算（M2）
-│  │  │  ├─ research.ts      研发：项目、槽位、速度、零件闸门
+│  │  │  ├─ research.ts      研发：6 槽、升级、项目、零件闸门
 │  │  │  ├─ loan.ts          授信、利息、自动透支
 │  │  │  ├─ lines.ts         加线、扩编、加班
 │  │  │  └─ market.ts        料价系数
@@ -1633,7 +1635,7 @@ tank-works/
 │  │  │  ├─ bureau.ts + style.css          设计局
 │  │  │  ├─ research.ts + research.css     研发局
 │  │  │  └─ manufacture.ts + factory.css   制造局
-│  │  ├─ game/shell.ts + style.css         游戏主界面 / 五局页 / 建厂登记
+│  │  ├─ game/shell.ts + research-view.ts + style.css   游戏主界面 / 五局页 / 研发槽+科技树 / 建厂登记
 │  │  ├─ menu-main.ts + menu-entry.ts + menu.css   主菜单
 │  │  └─ nation-main.ts + nation-entry.ts + nation.css  国家选择页
 │  └─ platform/
@@ -1868,7 +1870,7 @@ npm run preview       # 预览打包结果
 npm run desktop:dev   # Vite + Electron 开发窗口
 npm run desktop:build # esbuild 打桌面壳（desktop-dist/）
 npm run desktop:pack  # 构建 + 桌面壳 + electron-builder 出 Windows 包（release/）
-npm run check         # 全部检查：类型 + 校准 + 节奏 + 13 个检查台（554 项断言）
+npm run check         # 全部检查：类型 + 校准 + 节奏 + 14 个检查台（594 项断言）
 
 npm run design        # 19 辆历史车校准表
 npm run ballistics    # 弹道两轴表
@@ -1876,17 +1878,19 @@ npm run tech          # 槽月预算 + 九策略
 npm run factory       # 制造局标定台（7 辆车 × 36 个月）
 npm run clock         # 时钟验收
 npm run research      # 研发验收（开工、槽位、闸门、科技覆盖、快照、迁移）
+npm run research:slots # 科研槽验收（解锁、升级、项目占槽、旧档迁移）
 npm run metrics       # 设计局指标验收（抗破、装填、倒车、俯仰）
 npm run scale         # 经济尺度：8 个时代的毛利 / 工期 / 首单技术
 npm run economy       # 经济闭环验收（竞品、压价、贿赂、审计、交付、回款）
 
 npm run smoke:tank    # 设计局界面 37 项
-npm run smoke:game    # 游戏壳界面 104 项
+npm run smoke:game    # 游戏壳界面 107 项
 npm run menu          # 主菜单界面 47 项
 npm run nation        # 国家选择页 34 项
 npm run world         # 世界编制 16 项
 npm run dashboard     # 游戏主界面 46 项
-npm run smoke:research # 研发局界面 27 项
+npm run smoke:research # 独立研发读图页 27 项
+npm run research:slots # 科研槽 37 项
 npm run smoke:mf      # 制造局界面 21 项
 
 npm run fit:pen       # 弹道指数 / K 的标定（只打印，不改文件）

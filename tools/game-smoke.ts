@@ -118,21 +118,24 @@ check('重开页面能从存档恢复到 1916-09-15', txt(root2, '.date') === '1
 // ── 2b. 研发：开工 → 推进 → 完成 ───────────────────────────
 const store7 = createMemoryStorage()
 const root7 = mount(store7, 11)
-check('有研发面板', txt(root7, '.research-info').includes('槽 1'), txt(root7, '.research-info'))
-const techSel7 = q(root7, '.tech-select') as HTMLSelectElement
-check('开局有可开工的技术', techSel7.options.length > 0, `实际 ${techSel7.options.length}`)
-const firstTech7 = techSel7.options[0]?.value ?? ''
+q(root7, '.bureau-card[data-bureau="research"]')!.dispatchEvent(new win.Event('click') as unknown as Event)
+check('有研发面板', all(root7, '.research-slot').length === 1, `实际 ${all(root7, '.research-slot').length}`)
+check('科技树有卡片', all(root7, '.tech-card').length > 100, `实际 ${all(root7, '.tech-card').length}`)
+const doneBeforeTech = all(root7, '.tech-card.is-done').length
+const openCard7 = q(root7, '.tech-card.is-open') as HTMLElement | null
+check('开局有可开工的技术', Boolean(openCard7))
 const cashBeforeTech = cashOf(root7)
-techSel7.value = firstTech7
-techSel7.dispatchEvent(new win.Event('change') as unknown as Event)
-q(root7, '.chip-tech')!.dispatchEvent(new win.Event('click') as unknown as Event)
+openCard7!.click();
+check('点卡片会弹出科技详情', (q(root7, '.tech-modal') as HTMLElement).hidden === false)
+;(q(root7, '.tech-modal-start') as HTMLElement).click();
 check('开工后扣了研发费', cashOf(root7) < cashBeforeTech, `${cashBeforeTech} → ${cashOf(root7)}`)
-check('开工后出现在研项目', all(root7, '.project').length === 1, `实际 ${all(root7, '.project').length}`)
+check('开工后出现在研项目', all(root7, '.research-slot.is-busy').length === 1, `实际 ${all(root7, '.research-slot.is-busy').length}`)
 check('开工写进日志', root7.textContent!.includes('开工：'))
 q(root7, '.chip-jump')!.dispatchEvent(new win.Event('click') as unknown as Event)
 check('跳完之后科技完成', root7.textContent!.includes('研发完成'))
 check('科技完成会自动暂停', txt(root7, '.paused-tag').includes('科技完成'), txt(root7, '.paused-tag'))
-check('完成后没有在研项目', all(root7, '.project').length === 0, `实际 ${all(root7, '.project').length}`)
+check('完成后没有在研项目', all(root7, '.research-slot.is-busy').length === 0, `实际 ${all(root7, '.research-slot.is-busy').length}`)
+check('完成后科技卡变已掌握', all(root7, '.tech-card.is-done').length > doneBeforeTech, `${doneBeforeTech} → ${all(root7, '.tech-card.is-done').length}`)
 const raw7 = store7.read('tank-works.save.v7')
 check('存档里带研发状态', raw7 ? Array.isArray(JSON.parse(raw7).research?.projects) : false)
 const techRaw = win.localStorage.getItem('tank-works.tech.v1')
@@ -170,7 +173,7 @@ store8.write(
 )
 const root8 = mount(store8, 1)
 check('v3 存档能恢复日期', txt(root8, '.date') === '1916年9月15日', txt(root8, '.date'))
-check('v3 存档补上研发', txt(root8, '.research-info').includes('槽 1'), txt(root8, '.research-info'))
+check('v3 存档补上研发', all(root8, '.research-slot').length === 1, `实际 ${all(root8, '.research-slot').length}`)
 check('v3 存档补上国家', (q(root8, '.home-select') as HTMLSelectElement).value === 'fra')
 
 const store11 = createMemoryStorage()

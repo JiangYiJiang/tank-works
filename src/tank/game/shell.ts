@@ -15,18 +15,12 @@ import { createGame, daysLeft, progress, pushLog, type GameState, type LogEntry 
 import { decodeSave, encodeSave } from '../sim/save'
 import { PRODUCT_LEAD_YEARS, acceptOffer, bidPrice, needText, productCandidates, productMeets, refreshOffers, type BidMode } from '../sim/contract'
 import {
-  availableTechs,
-  buyResearchUpgrade,
   designCheck,
-  effortForTier,
-  monthlyUpkeep,
   slotsOf,
-  speedOf,
-  startResearch,
   techMods,
   techSnapshot,
 } from '../sim/research'
-import { SLOT_UPGRADES, SPEED_UPGRADES, TECH_BY_ID } from '../data/tech'
+import { createResearchView, type ResearchView } from './research-view'
 import { NATIONS, NATION_BY_ID } from '../data/nations'
 import { PLAYABLE_NATION_IDS, flagSvg, type PlayableNationId } from '../data/nation-profiles'
 import { worldAt, type WorldTank } from '../data/world'
@@ -138,7 +132,6 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   let renderedLogCount = -1
   let offerSig = ''
   let candidateSig = ''
-  let techSig = ''
   let lineSig = ''
   let cashWarned = false
   let deadlineWarned = false
@@ -213,23 +206,14 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   designBtn.addEventListener('click', openDesigner)
   const designRow = el('div', { class: 'design-row' }, designBtn)
 
-  const researchInfo = el('div', { class: 'research-info' })
-  const projectsWrap = el('div', { class: 'projects' })
-  const techSelect = el('select', { class: 'sel tech-select' })
-  const techStart = el('button', { class: 'chip chip-tech', type: 'button' }, '开工')
-  const techRow = el('div', { class: 'tech-row' }, techSelect, techStart)
-  const techHint = el('div', { class: 'research-info tech-hint' })
-  const upgradeWrap = el('div', { class: 'upgrades' })
-  const researchPanel = el(
-    'section',
-    { class: 'panel' },
-    el('h2', { text: '研发' }),
-    researchInfo,
-    projectsWrap,
-    techRow,
-    techHint,
-    upgradeWrap,
-  )
+  const researchView: ResearchView = createResearchView({
+    getState: () => state,
+    onChange: () => {
+      save()
+      render()
+    },
+    onError: (message) => showFlash({ d: state.day, k: 'note', t: message }),
+  })
 
   const offersWrap = el('div', { class: 'offers' })
   const contractWrap = el('div', { class: 'contract' })
@@ -469,17 +453,8 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     'research',
     '研发局',
     'RESEARCH BUREAU',
-    '把时间换成技术。项目在跑的时候，槽位才收月维持费。',
-    el(
-      'div',
-      { class: 'bureau-with-aside' },
-      researchPanel,
-      bureauAside('RESEARCH NOTES', '研究纪律', '技术是唯一会自己长大的资产，但它只在你付钱的时候长大。', [
-        '项目在跑才收槽位月维持费；空槽不扣。',
-        '超前研究更贵，落后研究有折扣。',
-        '先补材料与火炮，再碰超前项目。',
-      ]),
-    ),
+    '左边是人和房间，右边是时间。项目在跑的时候，槽位才收月维持费。',
+    researchView.root,
   )
   const manufacturePage = bureauPage(
     'manufacture',
@@ -1104,22 +1079,6 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
     save()
   })
 
-  techSelect.addEventListener('change', updateTechHint)
-
-  techStart.addEventListener('click', () => {
-    const id = techSelect.value
-    if (!id) return
-    const res = startResearch(state, id)
-    if (!res.ok) {
-      showFlash({ d: state.day, k: 'note', t: res.msg })
-      return
-    }
-    techSig = ''
-    candidateSig = ''
-    render()
-    save()
-  })
-
   productSelect.addEventListener('change', () => {
     if (state.contract) return
     if (productSelect.value === '__custom__') return
@@ -1196,100 +1155,7 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   }
 
   function renderResearch(): void {
-    const r = state.research
-    const year = dateOf(state.day).year
-    researchInfo.textContent = `槽 ${slotsOf(r)} · 速度 ×${speedOf(r).toFixed(2)} · 月维持 ${money(monthlyUpkeep(r, year))}${
-      r.projects.length ? '' : '（空闲不扣）'
-    }`
-
-    projectsWrap.replaceChildren()
-    if (r.projects.length === 0) {
-      projectsWrap.append(el('p', { class: 'hintline', text: '没有在研项目。' }))
-    }
-    for (const p of r.projects) {
-      const t = TECH_BY_ID.get(`${p.ladder}.${p.tier}`)
-      const pct = Math.min(100, (p.progress / Math.max(0.01, p.months)) * 100)
-      const fill = el('div', { class: 'meter-fill' })
-      fill.style.width = `${pct.toFixed(1)}%`
-      projectsWrap.append(
-        el(
-          'div',
-          { class: 'project' },
-          el(
-            'div',
-            { class: 'project-top' },
-            el('span', { text: t?.name ?? p.ladder }),
-            el('span', { class: 'project-pct', text: `${p.progress.toFixed(1)} / ${p.months.toFixed(1)} 槽月` }),
-          ),
-          el('div', { class: 'meter' }, fill),
-        ),
-      )
-    }
-
-    const list = availableTechs(state)
-    const slotFull = r.projects.length >= slotsOf(r)
-    const sig = `${year}|${slotFull}|${list.map((t) => t.id).join(',')}|${r.projects.length}`
-    if (sig !== techSig) {
-      techSig = sig
-      techSelect.replaceChildren()
-      if (list.length === 0) {
-        techSelect.append(el('option', { value: '', text: '— 没有可开工的技术 —' }))
-      }
-      for (const t of list) {
-        techSelect.append(el('option', { value: t.id, text: `${t.year} · ${t.name}` }))
-      }
-    }
-    techSelect.disabled = list.length === 0 || slotFull
-    techStart.disabled = techSelect.disabled
-    updateTechHint()
-
-    upgradeWrap.replaceChildren()
-    const groups: Array<readonly [string, readonly (typeof SLOT_UPGRADES)[number][]]> = [
-      ['slot', SLOT_UPGRADES],
-      ['speed', SPEED_UPGRADES],
-    ]
-    for (const [kind, table] of groups) {
-      for (const u of table) {
-        const id = `${kind}-${u.year}`
-        if (r.upgrades.includes(id) || year < u.year) continue
-        const b = el('button', { class: 'chip chip-upgrade', type: 'button', text: `${u.name} ${money(u.cost)}` })
-        b.disabled = state.cash < u.cost
-        b.title = u.effect
-        b.addEventListener('click', () => {
-          const res = buyResearchUpgrade(state, id)
-          if (!res.ok) {
-            showFlash({ d: state.day, k: 'note', t: res.msg })
-            return
-          }
-          techSig = ''
-          candidateSig = ''
-          render()
-          save()
-        })
-        upgradeWrap.append(b)
-      }
-    }
-    if (upgradeWrap.childElementCount === 0) {
-      const next = [...SLOT_UPGRADES, ...SPEED_UPGRADES]
-        .filter((u) => year < u.year)
-        .sort((a, b) => a.year - b.year)[0]
-      upgradeWrap.append(
-        el('span', { class: 'hintline', text: next ? `${next.year} 年起可以扩建槽位 / 速度。` : '暂时没有可扩建项。' }),
-      )
-    }
-  }
-
-  function updateTechHint(): void {
-    const id = techSelect.value
-    const t = id ? TECH_BY_ID.get(id) : undefined
-    if (!t) {
-      techHint.textContent = '没有可开工的技术。'
-      return
-    }
-    const effort = effortForTier(state, t)
-    techHint.textContent = `${effort.months.toFixed(1)} 槽月 · ${money(effort.cost)}${
-      effort.mult === 1 ? '' : ` · ×${effort.mult.toFixed(2)}`
-    }`
+    researchView.render()
   }
 
   function renderLines(): void {

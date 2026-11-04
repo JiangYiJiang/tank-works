@@ -32,6 +32,20 @@ import type { TechMods } from '../model/mods'
 /** 一个月的平均天数。用它把「天」换成「槽月」。 */
 export const DAYS_PER_MONTH = 30.4375
 
+/** 科研槽上限与占位经济（等经济系统统一设计后再调）。 */
+export const MAX_RESEARCH_SLOTS = 6
+export const MAX_SLOT_LEVEL = 4
+export const SLOT_UNLOCK_COST_BASE = 120_000
+export const SLOT_UNLOCK_COST_STEP = 80_000
+export const SLOT_UNLOCK_MONTHS_BASE = 8
+export const SLOT_UNLOCK_MONTHS_STEP = 2
+export const SLOT_UPGRADE_COST_BASE = 90_000
+export const SLOT_UPGRADE_COST_STEP = 40_000
+export const SLOT_UPGRADE_MONTHS_BASE = 6
+export const SLOT_UPGRADE_MONTHS_STEP = 2
+/** 每级槽位每月多出的维护费（占位）。 */
+export const SLOT_LEVEL_UPKEEP = 2_500
+
 /** 开局能造的零件年份：1915 + 2。 */
 const BASE_YEAR = 1915
 const PART_LEAD_YEARS = 2
@@ -92,13 +106,72 @@ export function isMastered(state: GameState, tierId: string): boolean {
 }
 
 export function slotsOf(r: ResearchState): number {
-  return 1 + allUpgrades().filter((x) => x.kind === 'slot' && r.upgrades.includes(x.id)).length
+  return r.slots?.length ?? 1
 }
 
-export function speedOf(r: ResearchState): number {
+function legacySpeedOf(r: ResearchState): number {
   return allUpgrades()
     .filter((x) => x.kind === 'speed' && r.upgrades.includes(x.id))
     .reduce((m, x) => m * (x.u.mult ?? 1), 1)
+}
+
+/** 第 index 个槽的速度：槽等级 × 旧的全局提速。 */
+export function slotSpeedOf(r: ResearchState, index: number): number {
+  const slot = r.slots?.[index]
+  const level = slot?.level ?? 1
+  return Math.pow(1.15, level - 1) * legacySpeedOf(r)
+}
+
+/** 当前所有槽里最快的那个（界面展示用）。 */
+export function speedOf(r: ResearchState): number {
+  let speed = 1
+  for (let i = 0; i < slotsOf(r); i++) speed = Math.max(speed, slotSpeedOf(r, i))
+  return speed
+}
+
+/** 这个槽现在空着吗？升级、解锁、在研都算占用。 */
+export function slotIsFree(r: ResearchState, index: number): boolean {
+  const slot = r.slots?.[index]
+  if (!slot || slot.job) return false
+  return !r.projects.some((p) => (p.slot ?? 0) === index)
+}
+
+export function slotProject(r: ResearchState, index: number) {
+  return r.projects.find((p) => (p.slot ?? 0) === index) ?? null
+}
+
+export interface SlotBuildOffer {
+  target: number
+  cost: number
+  months: number
+}
+
+export function slotUnlockOffer(r: ResearchState): SlotBuildOffer | null {
+  const target = slotsOf(r) + 1
+  if (target > MAX_RESEARCH_SLOTS) return null
+  return {
+    target,
+    cost: SLOT_UNLOCK_COST_BASE + SLOT_UNLOCK_COST_STEP * (target - 2),
+    months: SLOT_UNLOCK_MONTHS_BASE + SLOT_UNLOCK_MONTHS_STEP * (target - 2),
+  }
+}
+
+export interface SlotUpgradeOffer {
+  level: number
+  cost: number
+  months: number
+}
+
+export function slotUpgradeOffer(r: ResearchState, index: number): SlotUpgradeOffer | null {
+  const slot = r.slots?.[index]
+  if (!slot) return null
+  const level = slot.level
+  if (level >= MAX_SLOT_LEVEL) return null
+  return {
+    level,
+    cost: SLOT_UPGRADE_COST_BASE + SLOT_UPGRADE_COST_STEP * (level - 1),
+    months: SLOT_UPGRADE_MONTHS_BASE + SLOT_UPGRADE_MONTHS_STEP * (level - 1),
+  }
 }
 
 /** 每月维持费（只在有在研项目时扣）。 */
@@ -107,7 +180,11 @@ export function monthlyUpkeep(r: ResearchState, year: number): number {
   const extra = allUpgrades()
     .filter((x) => r.upgrades.includes(x.id))
     .reduce((s, x) => s + x.u.upkeep, 0)
-  return Math.round(base + extra)
+  const levelUpkeep = (r.slots ?? []).reduce(
+    (s, slot) => s + Math.max(0, (slot.level ?? 1) - 1) * SLOT_LEVEL_UPKEEP,
+    0,
+  )
+  return Math.round(base + extra + levelUpkeep)
 }
 
 /** 这个板块「今天能造到哪一年」的零件。 */
@@ -244,9 +321,6 @@ export function startResearch(state: GameState, tierId: string): ActionResult {
   if (state.over) return { ok: false, msg: '这一局已经结束' }
   const tier = TECH_BY_ID.get(tierId)
   if (!tier) return { ok: false, msg: '没有这条技术' }
-  if (state.research.projects.length >= slotsOf(state.research)) {
-    return { ok: false, msg: `科研槽满了（${slotsOf(state.research)} 个）` }
-  }
   if (masteredOf(state.research, tier.ladder) + 1 !== tier.tier) {
     return { ok: false, msg: '只能沿着梯子往上研发' }
   }
@@ -258,6 +332,9 @@ export function startResearch(state: GameState, tierId: string): ActionResult {
   }
   if (tier.months <= 0) return { ok: false, msg: '这条技术没有工期数据' }
 
+  const slot = state.research.slots.findIndex((_, i) => slotIsFree(state.research, i))
+  if (slot < 0) return { ok: false, msg: `科研槽都占着（${slotsOf(state.research)} 个）` }
+
   const effort = effortForTier(state, tier)
   if (state.cash < effort.cost) return { ok: false, msg: `现金不够（需要 ¥${effort.cost.toLocaleString('en-US')}）` }
 
@@ -266,6 +343,7 @@ export function startResearch(state: GameState, tierId: string): ActionResult {
   state.research.projects.push({
     ladder: tier.ladder,
     tier: tier.tier,
+    slot,
     months: effort.months,
     progress: 0,
     cost: effort.cost,
@@ -273,7 +351,7 @@ export function startResearch(state: GameState, tierId: string): ActionResult {
   pushLog(state, {
     d: state.day,
     k: 'tech',
-    t: `开工：${tier.name}（${effort.months.toFixed(1)} 槽月 / ¥${effort.cost.toLocaleString('en-US')}${effort.mult === 1 ? '' : `，×${effort.mult.toFixed(2)}`}）。`,
+    t: `开工：${tier.name}（槽 ${slot + 1}，${effort.months.toFixed(1)} 槽月 / ¥${effort.cost.toLocaleString('en-US')}${effort.mult === 1 ? '' : `，×${effort.mult.toFixed(2)}`}）。`,
   })
   return { ok: true, msg: `开工：${tier.name}` }
 }
@@ -286,32 +364,105 @@ export interface ResearchTick {
 
 /**
  * 推进研发。按天调用。
- * 项目以「槽月」推进：进度 += 天数 / 30.44 × 速度 × 时代强度。
+ * 项目以「槽月」推进：进度 += 天数 / 30.44 × 槽速度 × 时代强度。
+ * 解锁/升级任务按自然月推进；它们的工期不乘时代强度。
  */
 export function advanceResearch(state: GameState, day: number, days: number): ResearchTick {
   const out: ResearchTick = { completed: 0, spent: 0 }
   const r = state.research
-  if (state.over || r.projects.length === 0) return out
+  if (state.over) return out
 
   const year = dateOf(day).year
-  const perMonth = speedOf(r) * intensityAt(year)
-  const done: typeof r.projects = []
-  for (const p of r.projects) {
-    p.progress += (days / DAYS_PER_MONTH) * perMonth
-    if (p.progress >= p.months) done.push(p)
-  }
-  for (const p of done) {
-    r.mastered[p.ladder] = Math.max(masteredOf(r, p.ladder), p.tier)
-    const t = TECH_BY_ID.get(`${p.ladder}.${p.tier}`)
-    pushLog(state, { d: day, k: 'tech', t: `研发完成：${t?.name ?? p.ladder}（第 ${p.tier} 代）。` })
-    out.completed++
-  }
-  if (done.length > 0) {
-    r.projects = r.projects.filter((p) => !done.includes(p))
+  const monthProgress = days / DAYS_PER_MONTH
+
+  // 建造下一座槽
+  if (r.build) {
+    r.build.progress += monthProgress
+    if (r.build.progress >= r.build.months) {
+      r.slots.push({ level: 1, job: null })
+      pushLog(state, { d: day, k: 'tech', t: `科研槽建成：第 ${r.build.target} 个槽可以用了。` })
+      r.build = null
+    }
   }
 
-  out.spent = Math.round((monthlyUpkeep(r, year) * days) / DAYS_PER_MONTH)
+  // 槽位升级
+  for (const slot of r.slots) {
+    if (!slot.job) continue
+    slot.job.progress += monthProgress
+    if (slot.job.progress >= slot.job.months) {
+      slot.level = Math.max(slot.level, slot.job.targetLevel)
+      pushLog(state, { d: day, k: 'tech', t: `科研槽升级完成：速度 ×${Math.pow(1.15, slot.level - 1).toFixed(2)}。` })
+      slot.job = null
+    }
+  }
+
+  // 项目推进
+  if (r.projects.length > 0) {
+    const done: typeof r.projects = []
+    for (const p of r.projects) {
+      const slot = r.slots[p.slot ?? 0]
+      if (slot?.job) continue
+      const perMonth = slotSpeedOf(r, p.slot ?? 0) * intensityAt(year)
+      p.progress += monthProgress * perMonth
+      if (p.progress >= p.months) done.push(p)
+    }
+    for (const p of done) {
+      r.mastered[p.ladder] = Math.max(masteredOf(r, p.ladder), p.tier)
+      const t = TECH_BY_ID.get(`${p.ladder}.${p.tier}`)
+      pushLog(state, { d: day, k: 'tech', t: `研发完成：${t?.name ?? p.ladder}（第 ${p.tier} 代）。` })
+      out.completed++
+    }
+    if (done.length > 0) {
+      r.projects = r.projects.filter((p) => !done.includes(p))
+    }
+    out.spent = Math.round((monthlyUpkeep(r, year) * days) / DAYS_PER_MONTH)
+  }
   return out
+}
+
+export function startSlotUnlock(state: GameState): ActionResult {
+  if (state.over) return { ok: false, msg: '这一局已经结束' }
+  const r = state.research
+  if (r.build) return { ok: false, msg: `第 ${r.build.target} 个槽正在建造` }
+  const offer = slotUnlockOffer(r)
+  if (!offer) return { ok: false, msg: `科研槽已经到上限（${MAX_RESEARCH_SLOTS} 个）` }
+  if (state.cash < offer.cost) return { ok: false, msg: `现金不够（需要 ¥${offer.cost.toLocaleString('en-US')}）` }
+  state.cash -= offer.cost
+  state.stats.research += offer.cost
+  r.build = { target: offer.target, months: offer.months, progress: 0, cost: offer.cost }
+  pushLog(state, {
+    d: state.day,
+    k: 'tech',
+    t: `开工建造第 ${offer.target} 个科研槽（${offer.months} 个月 / ¥${offer.cost.toLocaleString('en-US')}）。`,
+  })
+  return { ok: true, msg: `开始建造第 ${offer.target} 个槽` }
+}
+
+export function startSlotUpgrade(state: GameState, index: number): ActionResult {
+  if (state.over) return { ok: false, msg: '这一局已经结束' }
+  const r = state.research
+  const slot = r.slots[index]
+  if (!slot) return { ok: false, msg: '没有这个科研槽' }
+  if (slot.job) return { ok: false, msg: '这个槽正在升级' }
+  if (slotProject(r, index)) return { ok: false, msg: '槽里还有在研项目' }
+  const offer = slotUpgradeOffer(r, index)
+  if (!offer) return { ok: false, msg: `这个槽已经满级（Lv.${MAX_SLOT_LEVEL}）` }
+  if (state.cash < offer.cost) return { ok: false, msg: `现金不够（需要 ¥${offer.cost.toLocaleString('en-US')}）` }
+  state.cash -= offer.cost
+  state.stats.research += offer.cost
+  slot.job = {
+    kind: 'upgrade',
+    targetLevel: offer.level + 1,
+    months: offer.months,
+    progress: 0,
+    cost: offer.cost,
+  }
+  pushLog(state, {
+    d: state.day,
+    k: 'tech',
+    t: `科研槽 ${index + 1} 开始升级到 Lv.${offer.level + 1}（${offer.months} 个月 / ¥${offer.cost.toLocaleString('en-US')}）。`,
+  })
+  return { ok: true, msg: `科研槽 ${index + 1} 开始升级` }
 }
 
 /** 从当前世代往下找，最近一个设了该系数的世代。 */
@@ -421,6 +572,9 @@ export function techSnapshot(state: GameState): TechSnapshot {
   state.cash -= entry.u.cost
   state.stats.research += entry.u.cost
   state.research.upgrades.push(id)
+  if (entry.kind === 'slot' && slotsOf(state.research) < MAX_RESEARCH_SLOTS) {
+    state.research.slots.push({ level: 1, job: null })
+  }
   pushLog(state, {
     d: state.day,
     k: 'tech',

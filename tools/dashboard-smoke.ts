@@ -99,7 +99,7 @@ check('研发局页打开', q(root, '.bureau-page-research')?.classList.contains
 check('外交局内容隐藏', q(root, '.dashboard')?.classList.contains('hidden') === true)
 check('研发页打开时五卡仍在', q(root, '.bureau-grid')?.classList.contains('hidden') === false)
 check('研发卡高亮', q(root, '.bureau-research')?.classList.contains('active') === true)
-check('研发页有研究纪律侧栏', txt(root, '.bureau-page-research').includes('研究纪律'))
+check('研发页有科研槽与科技树', Boolean(q(root, '.research-workspace')) && Boolean(q(root, '.tech-tree')), '缺少研发工作区')
 click(root, '.bureau-page-research .bureau-back')
 check('从研发局返回外交局', q(root, '.dashboard')?.classList.contains('hidden') === false)
 check('外交卡恢复高亮', q(root, '.bureau-diplomacy')?.classList.contains('active') === true)
