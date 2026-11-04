@@ -13,6 +13,7 @@
 |---|---|---|
 | 设计局 · 物理模型 | ✅ 完成 | 六槽位 → 七步管线；19 辆历史车全部落在门限内 |
 | 主菜单 | ✅ 完成 | 加载游戏、新游戏、设置、退出；左侧 logo，右侧背景预留 |
+| 国家选择 | ✅ 完成 | 新游戏先过 9 国卡片页；国旗、国名、发展历程；选中后才开始 |
 | 设计局 · 界面 | ✅ 完成 | 四维、19 项物理量、耦合与代价、弹道三轴、成本、缺陷 |
 | 时钟与事件 | ✅ 完成 | 28,124 天、8 时代、29 条快讯；存档有上限（1,116 B → 3,979 B） |
 | 研发局 · 数据与节奏 | ✅ 完成 | 159 条技术 / 65 梯子 / 7 泳道；槽月预算 + 九策略 |
@@ -25,7 +26,7 @@
 
 **一句话：主循环能转、科技树能推、设计能卖、标能抢、阵营能卡、钱能借、线能加、账能算；联机不做。**
 
-检查台现状：`npm run check` = 类型检查 + 13 个检查台，**445 项断言全绿**（见 §1.13）。
+检查台现状：`npm run check` = 类型检查 + 14 个检查台，**481 项断言全绿**（见 §1.14）。
 
 ---
 
@@ -159,14 +160,25 @@
 
 - 根路径 `/` 是入口页，深色蓝图风；左栏 logo + 四个按钮，右栏预留背景图位置
 - **加载游戏**：有存档时可用，摘要显示日期 / 时代 / 国家 / 现金 / 信誉 / 科技数；无存档时禁用
-- **新游戏**：有存档时两次确认，清 v7 与 legacy 存档、科技快照、设计交接，带 `?day=0` 开新局；无存档时一次进入
+- **新游戏**：有存档时两次确认，然后跳到 `/nations.html` 选国家；确认时不立刻清档，点「开始游戏」才清 v7 与 legacy 存档、科技快照、设计交接，带 `?day=0&home=<id>` 开新局；无存档时一次进入
 - **设置**：减少界面动画（`tank-works.settings.v1`）、查看并两次确认清除本局存档
 - **退出游戏**：进入退出页；浏览器不能可靠关闭标签页，所以提供「返回主菜单」
 - 响应式：窄屏单列、按钮全宽；右侧背景区在窄屏隐藏
 
 **验证**：`npm run menu` → **36 项断言**（四按钮、logo、存档摘要、设置开关/清档、退出页、两次确认）
 
-### 1.13 检查台
+### 1.13 国家选择 ✅
+
+- `/nations.html`：9 张国家卡——美国、英国、法国、德国、意大利、捷克斯洛伐克、瑞典、苏联、日本
+- 每卡显示内联 SVG 国旗、国名 / 英文名 / 年份、坦克发展 `tagline` / `history` / 代表车
+- 初始无选中，底部「开始游戏」灰色禁用；点卡片或国旗后琥珀高亮、显示「已选择」，按钮才亮起
+- 开始时清 `RUN_KEYS`，导航 `./game.html?day=0&home=<id>`；主循环校验 `home` 后传给 `createGame()`
+- 主菜单确认后只跳页不清档，所以在国家页反悔还能回主菜单读旧档
+- 响应式：3 列 → 2 列 → 1 列；操作条 sticky 在底部
+
+**验证**：`npm run nation` → **34 项断言**（9 卡顺序、SVG、历史长度、初始禁用、选中态、切换、清档、导航、`createGame` 国家参数）
+
+### 1.14 检查台
 
 `npm run check` 一条命令跑完：
 
@@ -182,11 +194,12 @@
 | 经济尺度 | `npm run scale` | 33 | ✅ |
 | 经济 | `npm run economy` | 96 | ✅ |
 | 设计局界面 | `npm run smoke:tank` | 37 | ✅ |
-| 游戏壳界面 | `npm run smoke:game` | 102 | ✅ |
+| 游戏壳界面 | `npm run smoke:game` | 104 | ✅ |
 | 主菜单界面 | `npm run menu` | 36 | ✅ |
+| 国家选择界面 | `npm run nation` | 34 | ✅ |
 | 研发局界面 | `npm run smoke:research` | 27 | ✅ |
 | 制造局界面 | `npm run smoke:mf` | 21 | ✅ |
-| **合计** | | **445 项断言** | |
+| **合计** | | **481 项断言** | |
 
 ---
 
@@ -325,10 +338,10 @@
 
 ```bash
 # 日常
-npm run dev            # 四个页面，127.0.0.1:5273
+npm run dev            # 六个页面，127.0.0.1:5273
 npm run build          # 类型检查 + 打包到 dist/（相对路径，可 file:// 打开）
 npm run preview        # 本地预览打包结果
-npm run check          # 445 项断言的完整回归，提交前跑这个
+npm run check          # 481 项断言的完整回归，提交前跑这个
 
 # 单个检查台
 npm run design         # 19 辆历史车校准
@@ -340,6 +353,7 @@ npm run research       # 研发验收（开工、槽位、闸门、迁移）
 npm run metrics        # 设计局指标验收（抗破、装填、倒车、俯仰）
 npm run scale          # 经济尺度（8 个时代的毛利 / 工期 / 首单技术）
 npm run menu           # 主菜单（四按钮、存档摘要、设置、退出）
+npm run nation         # 国家选择页（9 国、选中态、开始新局）
 npm run economy        # 经济闭环验收（接单 → 交付 → 回款）
 npm run smoke:tank     # 设计局界面
 npm run smoke:game     # 游戏壳界面
@@ -404,7 +418,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **M1 简化（已替换）**：空档期不烧维持费；换型即时免费；多线/贷款/信誉/竞品/贿赂/结算总表后来已接。
 
-**验证**：`npm run check` → 445 项断言；`npm run economy` → 96 项；`npm run smoke:game` → 102 项。
+**验证**：`npm run check` → 481 项断言；`npm run economy` → 96 项；`npm run smoke:game` → 104 项。
 
 ---
 
@@ -419,7 +433,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 数据修正：`ww2_simple` 年代 1944 → 1941（否则 T-34/76 会被判成超前 3 年，见 `data/parts.ts`）
 - 年代闸门：`designYear ≤ 当前年份 + 2`，同时在 `acceptOffer` 里兜底，防止绕过 UI
 
-**验证**：`npm run check` → 445 项；`smoke:tank` 37；`smoke:game` 102；`economy` 96。
+**验证**：`npm run check` → 481 项；`smoke:tank` 37；`smoke:game` 104；`economy` 96。
 
 ---
 
@@ -459,7 +473,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **刻意不进评分**：装填 / 倒车 / 俯仰只进读数，避免 19 辆历史车分数漂移（决策 31）。
 
-**验证**：`npm run metrics` → 13 项；`smoke:tank` 37；`check` 445。
+**验证**：`npm run metrics` → 13 项；`smoke:tank` 37；`check` 481。
 
 ---
 
@@ -473,7 +487,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `bidPrice()`：信誉乘数 `0.90–1.10`；`repMult()`
 - `auditBribes()`：每年 1 月 1 日，被抓概率 `15% + 10% × 笔数`（上限 60%），罚款 10% 现金、信誉 −15
 - 订单完成：按期 +2 信誉，逾期 −5
-- `data/nations.ts`：10 国；1939–45 同盟/轴心、1947–91 西方/东方、其余自由军贸；中立国通吃
+- `data/nations.ts`：11 国；1939–45 同盟/轴心、1947–91 西方/东方、其余自由军贸；中立国通吃
 - `GameState.home`：开局选国家，开工后锁定；招标客户只从允许阵营里出
 - 竞品逐年成长：`skill 0.89–0.96 + (年份−1915)×0.001`，上限 1.02
 - 存档 v6：新增 `home`；v5 及更早可读
@@ -557,7 +571,7 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 
 **决定：暂不做多合同**（选 B）。当前一局的核心决策已经够多（国家/产品/研发/接单方式/产能），多合同会先把 UI 与存档复杂度翻倍，而收益主要是后期。等核心循环稳定后再评估 A。
 
-**验证**：`npm run research` 49；`npm run metrics` 13；`smoke:tank` 37；`check` 445。
+**验证**：`npm run research` 49；`npm run metrics` 13；`smoke:tank` 37；`check` 481。
 
 ---
 
@@ -569,11 +583,11 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - `src/tank/menu-main.ts`：读 v7/legacy 存档做摘要；四个按钮「加载游戏 / 新游戏 / 设置 / 退出游戏」
 - 左栏 logo + 按钮；右栏 `.menu-art` 只留背景图占位
 - 设置覆盖层：减少界面动画、两次确认清除本局存档；退出覆盖层：可返回主菜单
-- 新游戏两次确认，清 v7 + legacy + 科技快照 + 设计交接，带 `?day=0` 开新局
+- 新游戏两次确认，然后跳到 `/nations.html`；确认时不清档，国家页点「开始游戏」才清 v7 + legacy + 科技快照 + 设计交接，带 `?day=0&home=<id>` 开新局
 - `src/tank/menu.css`：深色蓝图风、响应式；`docs/images/menu.png`
 - `src/platform/save-keys.ts`：存档键集中，壳与菜单共用
 
-**验证**：`npm run menu` 36；`check` 445。
+**验证**：`npm run menu` 36；`check` 481。
 
 ---
 
@@ -587,4 +601,21 @@ npm run tech:table     # 生成 DESIGN 附录 C 的科技表
 - 点应用后 `postMessage` 回主循环；主循环用 `buildTank` + `designCheck` 再校验，通过后替换 `state.design`
 - 关闭覆盖层清草稿；科技快照仍由主循环发布，零件表按当前科技过滤
 
-**验证**：`smoke:game` 102；`check` 445。
+**验证**：`smoke:game` 104；`check` 481。
+
+---
+
+## 附录 M：新游戏国家选择页（2026-11-04）
+
+**新增**：
+
+- `/nations.html` + `src/tank/nation-entry.ts` + `src/tank/nation-main.ts`：9 国卡片、内联 SVG 国旗、选中态、底部开始条
+- `src/tank/data/nation-profiles.ts`：9 国档案（英文名、年份、tagline、发展史、代表车）+ `flagSvg()`
+- `src/tank/data/nations.ts`：新增捷克斯洛伐克 `csk`（11 国）；二战归同盟、冷战归东方
+- `src/tank/sim/state.ts`：`createGame(seed, home='fra')`；主循环从 `?home=` 读国家并校验
+- `src/tank/menu-main.ts`：新游戏二次确认后只跳国家页，不清档；清档延后到「开始游戏」
+- `src/tank/nation.css`：3/2/1 列响应式、sticky 操作条、禁用/选中按钮态
+- `vite.config.ts` 增加 nations 入口；`package.json` 增加 `npm run nation`
+- `docs/images/nation-select.png`
+
+**验证**：`npm run nation` 34；`smoke:game` 104；`npm run menu` 36；`check` 481。

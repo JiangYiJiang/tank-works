@@ -186,7 +186,7 @@ export function starterDesign(): TankDesign {
   return JSON.parse(JSON.stringify(h.design)) as TankDesign
 }
 
-export function createGame(seed: number): GameState {
+export function createGame(seed: number, home = 'fra'): GameState {
   const state: GameState = {
     version: STATE_VERSION,
     seed,
@@ -203,7 +203,7 @@ export function createGame(seed: number): GameState {
     research: createResearch(),
     rep: 50,
     bribes: 0,
-    home: 'fra',
+    home,
     debt: 0,
     stats: createStats(),
   }

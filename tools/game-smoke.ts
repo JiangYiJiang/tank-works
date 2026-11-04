@@ -342,6 +342,15 @@ adoptBtn6.dispatchEvent(new win.Event('click') as unknown as Event)
 check('超前设计被拒绝', selectedText6().includes('FT-17 改'), selectedText6())
 check('拒绝时说明了年代', txt(root6, '.flash-text').includes('1944') || txt(root6, '.flash-text').includes('造不出来'), txt(root6, '.flash-text'))
 
+// ── 6. 新游戏从国家选择页带 ?home= 进来 ─────────────────────
+win.history.replaceState({}, '', '/game.html?day=0&home=ger')
+const storeHome = createMemoryStorage()
+const rootHome = mount(storeHome, 3)
+check('URL 的 home 决定开局国家', (q(rootHome, '.home-select') as HTMLSelectElement).value === 'ger')
+;(win as unknown as { dispatchEvent: (e: unknown) => boolean }).dispatchEvent(new win.Event('beforeunload'))
+check('新局存档保留所选国家', JSON.parse(storeHome.read('tank-works.save.v7') ?? '{}').home === 'ger')
+win.history.replaceState({}, '', '/game.html')
+
 console.log(`\n${pass} 通过 / ${fail} 失败\n`)
 // rAF 循环会真的挂住事件循环，测完必须硬退
 process.exit(fail > 0 ? 1 : 0)

@@ -10,7 +10,7 @@
  * 成为开局第一个大决策，而不是换一层皮。
  */
 
-export type NationId = 'fra' | 'gbr' | 'usa' | 'sov' | 'ger' | 'ita' | 'jpn' | 'chn' | 'swe' | 'che'
+export type NationId = 'fra' | 'gbr' | 'usa' | 'sov' | 'ger' | 'ita' | 'csk' | 'jpn' | 'chn' | 'swe' | 'che'
 
 export interface Nation {
   id: NationId
@@ -27,6 +27,7 @@ export const NATIONS: readonly Nation[] = [
   { id: 'sov', name: '苏联', short: '苏', from: 1922 },
   { id: 'ger', name: '德国', short: '德' },
   { id: 'ita', name: '意大利', short: '意' },
+  { id: 'csk', name: '捷克斯洛伐克', short: '捷', from: 1918 },
   { id: 'jpn', name: '日本', short: '日' },
   { id: 'chn', name: '中国', short: '中', from: 1949 },
   { id: 'swe', name: '瑞典', short: '瑞' },
@@ -36,9 +37,9 @@ export const NATIONS: readonly Nation[] = [
 export const NATION_BY_ID = new Map(NATIONS.map((n) => [n.id, n]))
 
 const AXIS: NationId[] = ['ger', 'ita', 'jpn']
-const ALLIES: NationId[] = ['fra', 'gbr', 'usa', 'sov', 'chn']
+const ALLIES: NationId[] = ['fra', 'gbr', 'usa', 'sov', 'chn', 'csk']
 const WEST: NationId[] = ['fra', 'gbr', 'usa', 'ger', 'ita', 'jpn']
-const EAST: NationId[] = ['sov', 'chn']
+const EAST: NationId[] = ['sov', 'chn', 'csk']
 const NEUTRAL: NationId[] = ['swe', 'che']
 
 export type Bloc = 'axis' | 'allies' | 'west' | 'east' | 'neutral'

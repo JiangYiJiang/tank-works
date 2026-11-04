@@ -27,7 +27,7 @@ import {
   techSnapshot,
 } from '../sim/research'
 import { SLOT_UPGRADES, SPEED_UPGRADES, TECH_BY_ID } from '../data/tech'
-import { NATIONS } from '../data/nations'
+import { NATIONS, NATION_BY_ID } from '../data/nations'
 import { buildTank } from '../model/build'
 import { designYear } from '../model/era'
 import { daysPerUnit, inTransitKg, stockOf } from '../sim/factory'
@@ -94,14 +94,18 @@ export function mountGame(root: HTMLElement, opts: GameOptions): void {
   // ?day=623 直接从某天开局。只给调试和截图用，不写进存档。
   // 注意 get() 在没有参数时返回 null，而 Number(null) === 0 —— 不判 null 的话
   // 每一局都会被悄悄重置到 1915-01-01，存档等于没写。
-  const dayParam = new URLSearchParams(location.search).get('day')
+  const params = new URLSearchParams(location.search)
+  const dayParam = params.get('day')
   const forced =
     dayParam === null ? null : Math.max(0, Math.min(TOTAL_DAYS - 1, Math.floor(Number(dayParam)) || 0))
+  // 新游戏从国家选择页带 ?home=usa 进来；只影响新开局，不覆盖已有存档里的国家。
+  const homeParam = params.get('home')
+  const home = homeParam && NATION_BY_ID.has(homeParam as never) ? homeParam : 'fra'
   const saved =
     storage.read(SAVE_KEY) ??
     LEGACY_SAVE_KEYS.map((k) => storage.read(k)).find((v): v is string => typeof v === 'string') ??
     null
-  let state: GameState = (forced === null ? decodeSave(saved) : null) ?? createGame(seed())
+  let state: GameState = (forced === null ? decodeSave(saved) : null) ?? createGame(seed(), home)
   if (forced !== null && forced > 0) advanceDays(state, forced)
   // 老存档 / 新开局都可能没有标；没有在手订单就按当前时代补一批。
   refreshOffers(state)

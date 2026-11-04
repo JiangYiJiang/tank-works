@@ -1200,7 +1200,7 @@ factor = clamp(0.82, 1.25,
 这一节是**完整设计**，不是现状。它的作用是把前面三个局的产出接上现金流。
 
 **M2 已经落地的部分**（`sim/contract.ts`，见 §8.8 与 §9.8）：三档招标、四维+总分门槛、竞品报价、压价 5%、贿赂、信誉、年度审计、按天交付、逾期 70%、回款。
-**还没做的**：阵营限制、选国家、竞品逐年成长、logit 推销成功率、审计后撤销订单。
+**还没做的**：竞品自主设计/抢单、logit 推销成功率、审计后撤销订单。阵营限制与选国家已经接进界面与主循环。
 
 ### 9.1 订单结构
 
@@ -1542,19 +1542,23 @@ v1–v6 老存档可以读：产品默认 FT-17，没有产线与订单，研发
 | 页面 | 路径 | 入口文件 | 用途 | 状态 |
 |---|---|---|---|---|
 | 主菜单 | `/` | `index.html` / `src/tank/menu-entry.ts` | 加载游戏、新游戏、设置、退出；左侧 logo，右侧背景预留 | ✅ 入口页 |
+| 国家选择 | `/nations.html` | `src/tank/nation-entry.ts` | 9 张国家卡：国旗、国名、坦克发展历程；选中后开始新局 | ✅ 新游戏流程 |
 | 游戏壳 | `/game.html` | `src/tank/game/main.ts` | 日历、产品、招标、产线、现金、研发；产品面板进设计覆盖层 | ✅ 可玩闭环 |
 | 设计局（预览） | `/tank.html` | `src/tank/main.ts` | 拼车、看四维、看代价、按科技过滤；游戏内用 `?embedded=1` | ✅ 预览 / 调试 |
 | 研发局 | `/research.html` | `src/tank/research-main.ts` | 科技树、超前/追赶、落后年数 | ✅ 可用 |
 | 制造局 | `/manufacture.html` | `src/tank/manufacture-main.ts` | 产线、仓库、学习曲线 | ✅ 独立试算页（主循环同一模型） |
 
-**主菜单布局**：左栏是 logo 与四个动作（加载 / 新游戏 / 设置 / 退出），右栏 `.menu-art` 是背景图占位，内容待定；退出按钮进入退出页，不调用 `window.close()`。设置键 `tank-works.settings.v1` 目前只存「减少界面动画」。
+**主菜单布局**：左栏是 logo 与四个动作（加载 / 新游戏 / 设置 / 退出），右栏 `.menu-art` 是背景图占位，内容待定；退出按钮进入退出页，不调用 `window.close()`。设置键 `tank-works.settings.v1` 目前只存「减少界面动画」。**新游戏**在旧存档存在时仍要两次确认，但确认后只跳到 `/nations.html`，不立刻清档；清档发生在国家页按「开始游戏」时，所以玩家在国家页反悔还能回主菜单读旧档。
+
+**国家选择页**：`/nations.html` 列首批 9 国（美、英、法、德、意、捷克斯洛伐克、瑞典、苏联、日本）。每张卡由 `data/nation-profiles.ts` 的 `flagSvg()` 内联 SVG 国旗、国名/英文名/年份、`tagline`、`history`、代表车 `tanks` 组成；卡是 `button.nation-card[data-id][aria-pressed]`，未选时底部「开始游戏」为灰、禁用，选中后卡片琥珀高亮并显示「已选择」，按钮才亮起。开始游戏时清 `RUN_KEYS`（v7 + legacy 存档、科技快照、设计草稿），导航到 `./game.html?day=0&home=<id>`；主循环从 URL 读 `home`，校验后传给 `createGame(seed, home)`，开工后锁定国籍。窄屏 3→2→1 列，操作条 sticky 在底部。
 
 **统一视觉**：蓝图风格。深底 `#0b0d10` + 24px 细网格 + 琥珀色 `#d9a24e` 强调；等宽数字（`font-variant-numeric: tabular-nums`），因为这是份仪表盘，不是海报。
 
-**四个调试入口**：
+**五个调试入口**：
 
 ```
 /game.html?design=1           直接打开游戏内设计覆盖层
+/game.html?day=0&home=ger     指定开局国家（跳过国家选择页）
 /research.html?year=1960      把「今天」拨到 1960
 /manufacture.html?days=200    开局直接推进 200 天
 /game.html?day=9009           从某一天开局（1939-09-01）
@@ -1571,7 +1575,7 @@ v1–v6 老存档可以读：产品默认 FT-17，没有产线与订单，研发
 | 选择 | 理由 |
 |---|---|
 | **TypeScript 5.9（strict + `noUncheckedIndexedAccess`）** | 模型里全是查表，数组越界必须被编译器抓住 |
-| **Vite 7** | 多入口多页构建（4 个页面 + 1 个跳转页）、秒级 HMR |
+| **Vite 7** | 多入口多页构建（6 个页面入口：主菜单、选国家、设计、游戏、研发、制造），秒级 HMR |
 | **纯 DOM，无框架** | 界面是仪表盘（数字 + 进度条 + 图表），不是表单应用。引入 React 只会增加一层需要同步的状态 |
 | **零运行时依赖** | `dependencies` 是空的，只有 devDeps |
 | **tsx** 跑 CLI 工具 | 校准台、预算台、标定台都是 Node 脚本 |
@@ -1595,7 +1599,7 @@ ui/          页面                      ← 唯一碰 DOM 的地方
 
 ```
 tank-works/
-├─ tank.html / game.html / research.html / manufacture.html
+├─ index.html / nations.html / tank.html / game.html / research.html / manufacture.html
 ├─ src/
 │  ├─ tank/
 │  │  ├─ types.ts            全部类型定义
@@ -1603,7 +1607,9 @@ tank-works/
 │  │  ├─ data/
 │  │  │  ├─ parts.ts         18 车体 / 6 材料 / 19 炮 / 17 发动机 / 18 悬挂 / 12 辅助
 │  │  │  ├─ tech.ts          159 条技术 + 升级表 + 系数
-│  │  │  └─ historical.ts    19 辆历史车（回归 fixture）
+│  │  │  ├─ historical.ts    19 辆历史车（回归 fixture）
+│  │  │  ├─ nations.ts       11 国 / 阵营 / 进入市场年份
+│  │  │  └─ nation-profiles.ts  9 国档案 + 内联 SVG 国旗
 │  │  ├─ model/
 │  │  │  ├─ tuning.ts        全部魔法数（一页看完）
 │  │  │  ├─ geometry.ts  mass.ts  armor.ts  gun.ts  ballistics.ts
@@ -1622,7 +1628,8 @@ tank-works/
 │  │  │  ├─ research.ts + research.css     研发局
 │  │  │  └─ manufacture.ts + factory.css   制造局
 │  │  ├─ game/shell.ts + style.css         游戏壳
-│  │  └─ menu-main.ts + menu-entry.ts + menu.css   主菜单
+│  │  ├─ menu-main.ts + menu-entry.ts + menu.css   主菜单
+│  │  └─ nation-main.ts + nation-entry.ts + nation.css  国家选择页
 │  └─ platform/
 │     ├─ storage.ts          SaveStore 抽象
 │     ├─ save-keys.ts        存档键 / 新游戏清理清单
@@ -1699,6 +1706,7 @@ tank-works/
 | 37 | 主动防御做成辅助套件 + 固定抗破加成 | 逐发拦截模拟 | 先让「用辅助槽换生存」成立；拦截概率/饱和攻击留给战斗层 |
 | 38 | 暂不做多合同 | 每线独立合同 | 状态/UI/存档复杂度翻倍，收益主要在后期；先保留单合同多线 |
 | 39 | 竞品 AI 做成「公司 skill + 年份成长 + 换届发车」 | 独立设计/抢单 AI | 先让竞品在报价上真实存在；自主设计车型留到有战斗/订单深度之后 |
+| 40 | 新游戏先过 9 国选择页，开始才清档 | 主菜单直接开法国局 / 下拉选国 | 国家是开局第一个大决策；二次确认后只跳页，玩家反悔还能读旧档；清档与 `home` 参数都收在国家页一处 |
 
 ---
 
@@ -1816,10 +1824,10 @@ tank-works/
 ```bash
 npm install           # 首次
 
-npm run dev           # 开发服务器 127.0.0.1:5273，四个页面
-npm run build         # 构建到 dist/（四个入口，相对路径）
+npm run dev           # 开发服务器 127.0.0.1:5273，六个页面
+npm run build         # 构建到 dist/（六个入口，相对路径）
 npm run preview       # 预览打包结果
-npm run check         # 全部检查：类型 + 校准 + 节奏 + 五套冒烟 + 研发 + 指标 + 经济 + 尺度（445 项断言）
+npm run check         # 全部检查：类型 + 校准 + 节奏 + 六套冒烟 + 研发 + 指标 + 经济 + 尺度（481 项断言）
 
 npm run design        # 19 辆历史车校准表
 npm run ballistics    # 弹道两轴表
@@ -1832,8 +1840,9 @@ npm run scale         # 经济尺度：8 个时代的毛利 / 工期 / 首单技
 npm run economy       # 经济闭环验收（竞品、压价、贿赂、审计、交付、回款）
 
 npm run smoke:tank    # 设计局界面 37 项
-npm run smoke:game    # 游戏壳界面 102 项
+npm run smoke:game    # 游戏壳界面 104 项
 npm run menu          # 主菜单界面 36 项
+npm run nation        # 国家选择页 34 项
 npm run smoke:research # 研发局界面 27 项
 npm run smoke:mf      # 制造局界面 21 项
 
@@ -1862,7 +1871,7 @@ npm run tech:table    # 生成附录 C 的科技表 markdown
 | 5 | 研发是否随机 | 不随机（现方案，为联机 lockstep）/ 有失败概率 | 未讨论 |
 | 6 | 破产判定阈值 | 现金 < 0 / 现金 < 3 个月开销 / 债务超上限 | **M1 暂时用「现金 < 0 立即破产」**，无贷款 |
 | 7 | 联机是竞争还是合作 | 竞争（各家抢订单）/ 合作（同阵营供应） | 未讨论 |
-| 8 | 玩家是否只能选一个国家 | 固定本国 / 开局选阵营 | 未讨论 |
+| 8 | 玩家是否只能选一个国家 | 固定本国 / 开局选阵营 | 已定：新游戏过 9 国选择页，开局后锁定；不限制只能选一国 |
 
 ---
 

@@ -296,18 +296,12 @@ export function mountMenu(root: HTMLElement, opts: MenuOptions = {}): void {
       newBtn.classList.add('danger')
       newLabel.textContent = '再点一次：覆盖存档'
       newTail.textContent = 'CONFIRM'
-      newHint.textContent = '这会清掉当前这一局的存档、科技快照和设计交接。'
+      newHint.textContent = '下一步选国家；点「开始游戏」后才会覆盖这一局。'
       armTimer = window.setTimeout(disarm, 5000)
       return
     }
-    for (const key of RUN_KEYS) {
-      try {
-        storage.remove(key)
-      } catch {
-        /* 清不掉也继续，主循环带 ?day=0 会强制新局 */
-      }
-    }
-    navigate('./game.html?day=0')
+    // 真正的清档放在国家选择页的「开始游戏」：玩家中途反悔还能回主菜单读档。
+    navigate('./nations.html')
   })
 
   settingsBtn.addEventListener('click', openSettings)

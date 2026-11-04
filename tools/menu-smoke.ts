@@ -75,9 +75,9 @@ check('退出页说明已退出', txt(emptyRoot, '.exit-panel').includes('游戏
 click(emptyRoot, '.exit-back')
 check('退出页可以返回', (q(emptyRoot, '.menu-exit-overlay') as HTMLElement).hidden === true)
 
-// 没有存档时，新游戏一次点击就进入
+// 没有存档时，新游戏一次点击就进入选国家
 click(emptyRoot, '.menu-new')
-check('没有存档时新游戏直接开局', nav === './game.html?day=0', nav)
+check('没有存档时新游戏进入选国家', nav === './nations.html', nav)
 
 // ── 2. 有存档 ─────────────────────────────────────────────
 const store = createMemoryStorage()
@@ -106,8 +106,8 @@ newBtn.dispatchEvent(new win.Event('click') as unknown as Event)
 check('第一次点新游戏进入确认态', (q(root, '.menu-new .btn-label')?.textContent ?? '').includes('再点一次'))
 check('确认态不清存档', store.read(SAVE_KEY) !== null)
 newBtn.dispatchEvent(new win.Event('click') as unknown as Event)
-check('第二次点新游戏清掉存档', store.read(SAVE_KEY) === null)
-check('第二次点新游戏带 ?day=0', nav === './game.html?day=0', nav)
+check('第二次点新游戏先进入选国家', nav === './nations.html', nav)
+check('选国家前不覆盖存档', store.read(SAVE_KEY) !== null)
 
 // ── 3. 设置里清除存档 ─────────────────────────────────────
 const store2 = createMemoryStorage()
